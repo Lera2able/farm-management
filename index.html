@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="tn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2c5f2d">
+    <title>Dikgomo - Palo ya Leruo</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Shepherd Name Modal (First Time) -->
+    <div id="shepherdModal" class="modal">
+        <div class="modal-content">
+            <h2>Leina la Modisa</h2>
+            <p>Tsweetswee kwala leina la gago</p>
+            <input type="text" id="shepherdName" placeholder="Leina" class="input-large">
+            <button onclick="saveShepherdName()" class="btn-primary">Boloka</button>
+        </div>
+    </div>
+
+    <!-- Top Bar (Sticky) -->
+    <div class="top-bar">
+        <div class="shepherd-info" id="shepherdInfo"></div>
+        
+        <div class="action-bar">
+            <!-- Search -->
+            <input type="text" id="searchInput" placeholder="Phuruphutsa nomoro..." class="search-input">
+            
+            <!-- Add New -->
+            <button onclick="showAddModal()" class="btn-secondary">
+                <span>➕</span> Tsenya Nomoro e Ntšhwa
+            </button>
+            
+            <!-- Save -->
+            <button onclick="saveAttendance()" class="btn-save" id="saveBtn">
+                <span>💾</span> Boloka
+            </button>
+            
+            <!-- Sync -->
+            <button onclick="manualSync()" class="btn-sync" id="syncBtn">
+                <span id="syncIcon">🔄</span> <span id="syncText">Tlhabolola</span>
+            </button>
+        </div>
+        
+        <!-- Sync Status -->
+        <div class="sync-status" id="syncStatus"></div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content-area">
+        <div class="stats-bar">
+            <div class="stat-item">
+                <span class="stat-label">Kakaretso:</span>
+                <span class="stat-value" id="totalCount">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Teng:</span>
+                <span class="stat-value present" id="presentCount">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Siyo:</span>
+                <span class="stat-value absent" id="absentCount">0</span>
+            </div>
+        </div>
+
+        <!-- Livestock Groups -->
+        <div id="livestockContainer"></div>
+    </div>
+
+    <!-- Add New Livestock Modal -->
+    <div id="addModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddModal()">&times;</span>
+            <h2>Tsenya Nomoro e Ntšhwa</h2>
+            <p>Kwala nomoro ya leruo</p>
+            <input type="text" id="newLivestockNumber" placeholder="Nomoro" class="input-large">
+            <div class="button-group">
+                <button onclick="submitNewLivestock()" class="btn-primary">Romela</button>
+                <button onclick="closeAddModal()" class="btn-secondary">Khansela</button>
+            </div>
+            <p class="help-text">*Tlhabololo e tla tsaya tshwetso</p>
+        </div>
+    </div>
+
+    <!-- Sold/Died Registration Modal -->
+    <div id="registrationModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close" onclick="closeRegistrationModal()">&times;</span>
+            <h2>Ikwadise/Tshwaya</h2>
+            <p>Nomoro ya Leruo: <strong id="regLivestockNumber"></strong></p>
+            
+            <div class="form-group">
+                <label>Kgetho:</label>
+                <select id="regStatus" class="input-large">
+                    <option value="">Kgetha...</option>
+                    <option value="sold">Rekisitswe</option>
+                    <option value="died">Sule</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Letlha:</label>
+                <input type="date" id="regDate" class="input-large">
+            </div>
+            
+            <div class="button-group">
+                <button onclick="submitRegistration()" class="btn-danger">Ikwadise</button>
+                <button onclick="closeRegistrationModal()" class="btn-secondary">Khansela</button>
+            </div>
+            <p class="help-text">*E tla romelwa go tlhabololo</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="livestock-data.js"></script>
+    <script src="db.js"></script>
+    <script src="app.js"></script>
+    <script src="sync.js"></script>
+    
+    <script>
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(reg => console.log('Service Worker registered'))
+                    .catch(err => console.log('Service Worker registration failed'));
+            });
+        }
+    </script>
+</body>
+</html>

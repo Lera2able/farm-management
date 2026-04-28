@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Livestock Management</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            padding: 20px;
+        }
+        
+        .admin-header {
+            background: var(--primary-green);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .admin-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .admin-section h2 {
+            color: var(--primary-green);
+            margin-bottom: 15px;
+        }
+        
+        .pending-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .pending-table th,
+        .pending-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--light-gray);
+        }
+        
+        .pending-table th {
+            background: var(--light-gray);
+            font-weight: 600;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-approve {
+            background: var(--primary-green);
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .btn-reject {
+            background: var(--red);
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: var(--light-gray);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-card h3 {
+            font-size: 32px;
+            color: var(--primary-green);
+            margin-bottom: 5px;
+        }
+        
+        .stat-card p {
+            color: var(--gray);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-header">
+        <h1>Admin Dashboard - Livestock Management</h1>
+        <p>Manage livestock additions, sold/died registrations, and view attendance history</p>
+    </div>
+
+    <!-- Statistics -->
+    <div class="admin-section">
+        <h2>Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3 id="totalLivestock">0</h3>
+                <p>Total Active Livestock</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="inactiveLivestock">0</h3>
+                <p>Inactive (Sold/Died)</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="pendingAdditions">0</h3>
+                <p>Pending Additions</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="pendingRegistrations">0</h3>
+                <p>Pending Status Changes</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Additions -->
+    <div class="admin-section">
+        <h2>Pending Livestock Additions</h2>
+        <p style="color: var(--gray); margin-bottom: 15px;">Review and approve new livestock number requests from farm workers.</p>
+        <table class="pending-table" id="pendingAdditionsTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Livestock Number</th>
+                    <th>Submitted By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--gray);">No pending additions</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pending Sold/Died Registrations -->
+    <div class="admin-section">
+        <h2>Pending Status Changes (Sold/Died)</h2>
+        <p style="color: var(--gray); margin-bottom: 15px;">Review and approve livestock sold/died registrations.</p>
+        <table class="pending-table" id="pendingRegistrationsTable">
+            <thead>
+                <tr>
+                    <th>Date Submitted</th>
+                    <th>Livestock Number</th>
+                    <th>Status</th>
+                    <th>Date Occurred</th>
+                    <th>Submitted By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="6" style="text-align: center; color: var(--gray);">No pending registrations</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="admin-section">
+        <h2>Quick Links</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+            <button class="btn-primary" onclick="openGoogleSheets()">
+                📊 Open Google Sheets
+            </button>
+            <button class="btn-primary" onclick="downloadLocalData()">
+                💾 Download Local Data (CSV)
+            </button>
+            <button class="btn-secondary" onclick="window.location.href='index.html'">
+                ← Back to Farm Worker View
+            </button>
+        </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="admin-section">
+        <h2>Admin Instructions</h2>
+        <ol style="line-height: 2;">
+            <li><strong>Pending Additions</strong>: Approve or reject new livestock numbers submitted by farm workers</li>
+            <li><strong>Pending Registrations</strong>: Approve livestock that have been sold or died</li>
+            <li><strong>Google Sheets</strong>: View full attendance history and manage data</li>
+            <li><strong>Local Data Export</strong>: Download all locally stored attendance records</li>
+        </ol>
+        
+        <h3 style="margin-top: 20px;">Approving Additions:</h3>
+        <p>When you approve a new livestock number:</p>
+        <ul>
+            <li>It will be added to the main livestock list</li>
+            <li>It will appear in the Google Sheets master list</li>
+            <li>Farm workers will see it in their attendance app</li>
+        </ul>
+        
+        <h3 style="margin-top: 20px;">Approving Sold/Died:</h3>
+        <p>When you approve a status change:</p>
+        <ul>
+            <li>The livestock will be marked as inactive (red)</li>
+            <li>It will move to the "Not Active" group</li>
+            <li>It will no longer count in active attendance</li>
+            <li>The record will be saved in the "Sold/Died Register" sheet</li>
+        </ul>
+    </div>
+
+    <script src="db.js"></script>
+    <script src="livestock-data.js"></script>
+    <script>
+        // Admin Interface Logic
+        
+        async function loadAdminData() {
+            // Load statistics
+            const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive).length;
+            const inactiveLivestock = LIVESTOCK_DATA.filter(l => l.is_inactive).length;
+            
+            document.getElementById('totalLivestock').textContent = activeLivestock;
+            document.getElementById('inactiveLivestock').textContent = inactiveLivestock;
+            
+            // Load pending actions
+            const pendingActions = await db.getUnsyncedActions();
+            
+            const additions = pendingActions.filter(a => a.type === 'add_livestock');
+            const registrations = pendingActions.filter(a => a.type === 'sold' || a.type === 'died');
+            
+            document.getElementById('pendingAdditions').textContent = additions.length;
+            document.getElementById('pendingRegistrations').textContent = registrations.length;
+            
+            // Render tables
+            renderPendingAdditions(additions);
+            renderPendingRegistrations(registrations);
+        }
+        
+        function renderPendingAdditions(additions) {
+            const tbody = document.querySelector('#pendingAdditionsTable tbody');
+            
+            if (additions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--gray);">No pending additions</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = additions.map(action => `
+                <tr>
+                    <td>${new Date(action.timestamp).toLocaleDateString()}</td>
+                    <td><strong>${action.data.livestockId}</strong></td>
+                    <td>${action.data.submittedBy}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-approve" onclick="approveAddition(${action.id})">Approve</button>
+                            <button class="btn-reject" onclick="rejectAddition(${action.id})">Reject</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function renderPendingRegistrations(registrations) {
+            const tbody = document.querySelector('#pendingRegistrationsTable tbody');
+            
+            if (registrations.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--gray);">No pending registrations</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = registrations.map(action => `
+                <tr>
+                    <td>${new Date(action.timestamp).toLocaleDateString()}</td>
+                    <td><strong>${action.data.livestockId}</strong></td>
+                    <td style="color: ${action.type === 'sold' ? 'var(--primary-green)' : 'var(--red)'}">
+                        ${action.type === 'sold' ? 'Sold (Rekisitswe)' : 'Died (Sule)'}
+                    </td>
+                    <td>${action.data.date}</td>
+                    <td>${action.data.submittedBy}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-approve" onclick="approveRegistration(${action.id})">Approve</button>
+                            <button class="btn-reject" onclick="rejectRegistration(${action.id})">Reject</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        async function approveAddition(actionId) {
+            if (!confirm('Approve this addition? The livestock will be added to the active list.')) return;
+            
+            // Mark as synced (approved)
+            await db.markActionSynced(actionId);
+            alert('Approved! The livestock will be added to the system.');
+            loadAdminData();
+        }
+        
+        async function rejectAddition(actionId) {
+            if (!confirm('Reject this addition? The request will be removed.')) return;
+            
+            await db.markActionSynced(actionId);
+            alert('Rejected.');
+            loadAdminData();
+        }
+        
+        async function approveRegistration(actionId) {
+            if (!confirm('Approve this status change? The livestock will be marked as inactive.')) return;
+            
+            await db.markActionSynced(actionId);
+            alert('Approved! The livestock status has been updated.');
+            loadAdminData();
+        }
+        
+        async function rejectRegistration(actionId) {
+            if (!confirm('Reject this status change?')) return;
+            
+            await db.markActionSynced(actionId);
+            alert('Rejected.');
+            loadAdminData();
+        }
+        
+        function openGoogleSheets() {
+            // This will need to be configured with actual Google Sheets URL
+            alert('Please add your Google Sheets URL in the code.');
+            // window.open('YOUR_GOOGLE_SHEETS_URL', '_blank');
+        }
+        
+        async function downloadLocalData() {
+            const allRecords = await db.getAllAttendance();
+            
+            // Convert to CSV
+            const csvRows = [
+                ['Date', 'Shepherd', 'Total Active', 'Present Count', 'Absent Count', 'Synced'].join(',')
+            ];
+            
+            allRecords.forEach(record => {
+                const totalActive = LIVESTOCK_DATA.filter(l => !l.is_inactive).length;
+                const presentCount = record.presentLivestock.length;
+                const absentCount = totalActive - presentCount;
+                
+                csvRows.push([
+                    record.date,
+                    record.shepherdName,
+                    totalActive,
+                    presentCount,
+                    absentCount,
+                    record.synced ? 'Yes' : 'No'
+                ].join(','));
+            });
+            
+            const csv = csvRows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `livestock-attendance-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            db.init().then(() => {
+                loadAdminData();
+            });
+        });
+    </script>
+</body>
+</html>
