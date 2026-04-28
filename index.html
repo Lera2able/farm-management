@@ -1,131 +1,1076 @@
 <!DOCTYPE html>
-<html lang="tn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#2c5f2d">
-    <title>Dikgomo - Palo ya Leruo</title>
+    <title>Dikgomo Register</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+            margin-bottom: 60px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            background: #f3f4f6;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .nav-tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            color: #6b7280;
+            transition: all 0.3s;
+        }
+        
+        .nav-tab.active {
+            color: #3b82f6;
+            background: white;
+            border-bottom: 3px solid #3b82f6;
+        }
+        
+        .content {
+            padding: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 14px;
+        }
+        
+        select, input[type="date"], input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .search-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .search-row .or-text {
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        
+        .search-row .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        
+        .teacher-info {
+            background: #f0f9ff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .teacher-info-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .teacher-info-header span:first-child {
+            font-size: 18px;
+        }
+        
+        .teacher-info-header span:last-child {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .stats-box {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 30px 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .stats-box h3 {
+            font-size: 48px;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+        
+        .stats-box p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .livestock-list {
+            margin-top: 20px;
+        }
+        
+        .livestock-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #f9fafb;
+            transition: all 0.2s;
+        }
+        
+        .livestock-item:hover {
+            background: #f3f4f6;
+        }
+        
+        .livestock-item.present {
+            background: #d1fae5;
+            border-color: #10b981;
+        }
+        
+        .livestock-item.inactive {
+            background: #fee2e2;
+            border-color: #ef4444;
+            opacity: 0.7;
+        }
+        
+        .livestock-item.hidden {
+            display: none;
+        }
+        
+        .livestock-info {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .livestock-number {
+            background: #3b82f6;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        
+        .livestock-name {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 16px;
+        }
+        
+        .livestock-status {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+        
+        .livestock-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        input[type="checkbox"] {
+            width: 22px;
+            height: 22px;
+            cursor: pointer;
+            accent-color: #10b981;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #059669;
+        }
+        
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #d97706;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .btn-full {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .action-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .action-card {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .action-card:hover {
+            background: #f3f4f6;
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+        }
+        
+        .action-icon {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+        
+        .action-title {
+            font-weight: 700;
+            color: #1f2937;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        
+        .action-desc {
+            color: #6b7280;
+            font-size: 13px;
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        
+        .modal.hidden {
+            display: none;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        
+        .modal-header h2 {
+            color: #1f2937;
+            margin-bottom: 5px;
+            font-size: 22px;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: -5px;
+            right: 0;
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #6b7280;
+            line-height: 1;
+        }
+        
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 2px solid #10b981;
+            font-size: 16px;
+            font-weight: 600;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 2px solid #3b82f6;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+        
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+        }
+        
+        .sync-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-weight: 600;
+            font-size: 14px;
+            z-index: 999;
+        }
+        
+        .sync-indicator.online {
+            color: #059669;
+            border: 2px solid #10b981;
+        }
+        
+        .sync-indicator.offline {
+            color: #d97706;
+            border: 2px solid #f59e0b;
+        }
+    </style>
 </head>
 <body>
-    <!-- Shepherd Name Modal (First Time) -->
-    <div id="shepherdModal" class="modal">
-        <div class="modal-content">
-            <h2>Leina la Modisa</h2>
-            <p>Tsweetswee kwala leina la gago</p>
-            <input type="text" id="shepherdName" placeholder="Leina" class="input-large">
-            <button onclick="saveShepherdName()" class="btn-primary">Boloka</button>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🐄 Dikgomo Register</h1>
+            <p>Palo ya Leruo</p>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="switchTab('register')">
+                📋 Livestock Register
+            </button>
+            <button class="nav-tab" onclick="switchTab('actions')">
+                ⚙️ Actions
+            </button>
+        </div>
+
+        <!-- Register Tab Content -->
+        <div id="registerTab" class="tab-content active">
+            <div class="content">
+                
+                <!-- MODISA INFORMATION FIRST -->
+                <div class="teacher-info">
+                    <div class="teacher-info-header">
+                        <span>👤</span>
+                        <span>Modisa Information</span>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" id="shepherdName" placeholder="Leina la Modisa (Shepherd Name)">
+                    </div>
+                </div>
+
+                <!-- Select Date - Shows TODAY by default -->
+                <div class="form-group">
+                    <label>Select Date</label>
+                    <input type="text" id="dateDisplay" readonly style="background: white; cursor: pointer; font-weight: 600;" onclick="document.getElementById('dateInput').showPicker()">
+                    <input type="date" id="dateInput" style="display: none;" onchange="updateDateDisplay()">
+                </div>
+
+                <!-- Group Selection -->
+                <div class="form-group">
+                    <label>Kgetha Setlhopha</label>
+                    <select id="groupSelect" onchange="loadGroup()">
+                        <option value="all">Tsohle (View All)</option>
+                        <option value="special">Rikus (Poo)</option>
+                        <option value="11">Dikgomo 11xxx</option>
+                        <option value="55">Dikgomo 55xxx</option>
+                        <option value="56">Dikgomo 56xxx</option>
+                        <option value="58">Dikgomo 58xxx</option>
+                        <option value="72">Dikgomo 72xxx</option>
+                        <option value="other">Tse Dingwe</option>
+                        <option value="inactive">Ga e dire (Inactive)</option>
+                    </select>
+                </div>
+
+                <!-- Or + Search -->
+                <div class="search-row">
+                    <span class="or-text">Kapa</span>
+                    <div class="form-group">
+                        <label>Batla Nomoro (Search Number)</label>
+                        <input type="text" id="searchInput" placeholder="e.g., 11250" oninput="handleSearch()">
+                    </div>
+                </div>
+
+                <!-- Search Result Message -->
+                <div id="searchMessage"></div>
+
+                <!-- Stats Box -->
+                <div class="stats-box">
+                    <h3><span id="presentCount">0</span>/<span id="totalCount">0</span></h3>
+                    <p>Teng Gompieno (Present Today)</p>
+                </div>
+
+                <!-- Livestock List -->
+                <div id="livestockList" class="livestock-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🐄</div>
+                        <p>Loading livestock data...</p>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <button class="btn btn-success btn-full" onclick="saveAttendance()" id="saveBtn">
+                    💾 Boloka (Save Attendance)
+                </button>
+
+                <!-- Sync Button -->
+                <button class="btn btn-primary btn-full" onclick="syncData()" id="syncBtn">
+                    🔄 Tlhabolola (Sync Data)
+                </button>
+
+                <div id="successMessage"></div>
+            </div>
+        </div>
+
+        <!-- Actions Tab Content -->
+        <div id="actionsTab" class="tab-content">
+            <div class="content">
+                <h2 style="margin-bottom: 20px; color: #1f2937;">Quick Actions</h2>
+                <div class="action-cards">
+                    <div class="action-card" onclick="showAddModal()">
+                        <div class="action-icon">➕</div>
+                        <div class="action-title">Tsenya Nomoro e Ntšhwa</div>
+                        <div class="action-desc">Add new livestock number</div>
+                    </div>
+                    <div class="action-card" onclick="showRegisterModal()">
+                        <div class="action-icon">📝</div>
+                        <div class="action-title">Ikwadise/Tshwaya</div>
+                        <div class="action-desc">Register sold/died livestock</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Top Bar (Sticky) -->
-    <div class="top-bar">
-        <div class="shepherd-info" id="shepherdInfo"></div>
-        
-        <div class="action-bar">
-            <!-- Search -->
-            <input type="text" id="searchInput" placeholder="Phuruphutsa nomoro..." class="search-input">
-            
-            <!-- Add New -->
-            <button onclick="showAddModal()" class="btn-secondary">
-                <span>➕</span> Tsenya Nomoro e Ntšhwa
-            </button>
-            
-            <!-- Save -->
-            <button onclick="saveAttendance()" class="btn-save" id="saveBtn">
-                <span>💾</span> Boloka
-            </button>
-            
-            <!-- Sync -->
-            <button onclick="manualSync()" class="btn-sync" id="syncBtn">
-                <span id="syncIcon">🔄</span> <span id="syncText">Tlhabolola</span>
-            </button>
-        </div>
-        
-        <!-- Sync Status -->
-        <div class="sync-status" id="syncStatus"></div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="content-area">
-        <div class="stats-bar">
-            <div class="stat-item">
-                <span class="stat-label">Kakaretso:</span>
-                <span class="stat-value" id="totalCount">0</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">Teng:</span>
-                <span class="stat-value present" id="presentCount">0</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">Siyo:</span>
-                <span class="stat-value absent" id="absentCount">0</span>
-            </div>
-        </div>
-
-        <!-- Livestock Groups -->
-        <div id="livestockContainer"></div>
-    </div>
-
-    <!-- Add New Livestock Modal -->
+    <!-- Add Livestock Modal -->
     <div id="addModal" class="modal hidden">
         <div class="modal-content">
-            <span class="close" onclick="closeAddModal()">&times;</span>
-            <h2>Tsenya Nomoro e Ntšhwa</h2>
-            <p>Kwala nomoro ya leruo</p>
-            <input type="text" id="newLivestockNumber" placeholder="Nomoro" class="input-large">
-            <div class="button-group">
-                <button onclick="submitNewLivestock()" class="btn-primary">Romela</button>
-                <button onclick="closeAddModal()" class="btn-secondary">Khansela</button>
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+                <h2>Tsenya Nomoro e Ntšhwa</h2>
+                <p style="color: #6b7280; font-size: 14px;">Add New Livestock Number</p>
             </div>
-            <p class="help-text">*Tlhabololo e tla tsaya tshwetso</p>
+            <div class="form-group">
+                <label>Nomoro ya Leruo (Livestock Number)</label>
+                <input type="text" id="newLivestockNumber" placeholder="e.g., 11250">
+            </div>
+            <button class="btn btn-primary btn-full" onclick="submitNewLivestock()">
+                ✓ Romela (Submit)
+            </button>
         </div>
     </div>
 
-    <!-- Sold/Died Registration Modal -->
-    <div id="registrationModal" class="modal hidden">
+    <!-- Register Sold/Died Modal -->
+    <div id="registerModal" class="modal hidden">
         <div class="modal-content">
-            <span class="close" onclick="closeRegistrationModal()">&times;</span>
-            <h2>Ikwadise/Tshwaya</h2>
-            <p>Nomoro ya Leruo: <strong id="regLivestockNumber"></strong></p>
-            
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeRegisterModal()">&times;</button>
+                <h2>Ikwadise/Tshwaya</h2>
+                <p style="color: #6b7280; font-size: 14px;">Register Sold or Died Livestock</p>
+            </div>
             <div class="form-group">
-                <label>Kgetho:</label>
-                <select id="regStatus" class="input-large">
-                    <option value="">Kgetha...</option>
-                    <option value="sold">Rekisitswe</option>
-                    <option value="died">Sule</option>
+                <label>Nomoro ya Leruo (Livestock Number)</label>
+                <select id="regLivestockSelect">
+                    <option value="">Kgetha nomoro...</option>
                 </select>
             </div>
-            
             <div class="form-group">
-                <label>Letlha:</label>
-                <input type="date" id="regDate" class="input-large">
+                <label>Status</label>
+                <select id="regStatus">
+                    <option value="">Kgetha...</option>
+                    <option value="sold">Rekisitswe (Sold)</option>
+                    <option value="died">Sule (Died)</option>
+                </select>
             </div>
-            
-            <div class="button-group">
-                <button onclick="submitRegistration()" class="btn-danger">Ikwadise</button>
-                <button onclick="closeRegistrationModal()" class="btn-secondary">Khansela</button>
+            <div class="form-group">
+                <label>Letlha (Date)</label>
+                <input type="date" id="regDate">
             </div>
-            <p class="help-text">*E tla romelwa go tlhabololo</p>
+            <button class="btn btn-danger btn-full" onclick="submitRegistration()">
+                ✓ Ikwadise (Register)
+            </button>
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Sync Indicator -->
+    <div id="syncIndicator" class="sync-indicator online">
+        ✓ Online
+    </div>
+
+    <!-- Load livestock data FIRST -->
     <script src="livestock-data.js"></script>
     <script src="db.js"></script>
-    <script src="app.js"></script>
     <script src="sync.js"></script>
     
     <script>
-        // Register service worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('service-worker.js')
-                    .then(reg => console.log('Service Worker registered'))
-                    .catch(err => console.log('Service Worker registration failed'));
+        // Application State
+        let currentGroup = 'all'; // START WITH VIEW ALL
+        let currentLivestock = [];
+        let attendance = {};
+        let shepherdName = '';
+        let selectedDate = '';
+        let searchTerm = '';
+
+        // Format date as DD/MM/YYYY like Carissa
+        function formatDate(dateString) {
+            const date = new Date(dateString + 'T00:00:00');
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        function updateDateDisplay() {
+            selectedDate = document.getElementById('dateInput').value;
+            document.getElementById('dateDisplay').value = formatDate(selectedDate);
+            loadGroup(); // Reload when date changes
+        }
+
+        // Initialize
+        function init() {
+            console.log('Loading LIVESTOCK_DATA...', LIVESTOCK_DATA ? LIVESTOCK_DATA.length + ' animals' : 'FAILED');
+            
+            // Set TODAY's date in both formats
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const todayString = `${yyyy}-${mm}-${dd}`;
+            
+            selectedDate = todayString;
+            document.getElementById('dateInput').value = todayString;
+            document.getElementById('dateDisplay').value = formatDate(todayString);
+            
+            console.log('TODAY:', formatDate(todayString));
+            
+            // Load from localStorage
+            const saved = localStorage.getItem('dikgomo_attendance');
+            const savedShepherd = localStorage.getItem('dikgomo_shepherd');
+            
+            if (saved) attendance = JSON.parse(saved);
+            if (savedShepherd) {
+                shepherdName = savedShepherd;
+                document.getElementById('shepherdName').value = shepherdName;
+            }
+            
+            // Update online/offline status
+            updateOnlineStatus();
+            window.addEventListener('online', updateOnlineStatus);
+            window.addEventListener('offline', updateOnlineStatus);
+            
+            // Save shepherd name on change
+            document.getElementById('shepherdName').addEventListener('change', function() {
+                shepherdName = this.value;
+                localStorage.setItem('dikgomo_shepherd', shepherdName);
             });
+            
+            // Initialize database
+            if (typeof db !== 'undefined') {
+                db.init();
+            }
+            
+            // AUTO-LOAD ALL LIVESTOCK ON START
+            loadGroup();
+        }
+
+        // Switch tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            if (tab === 'register') {
+                document.querySelectorAll('.nav-tab')[0].classList.add('active');
+                document.getElementById('registerTab').classList.add('active');
+            } else {
+                document.querySelectorAll('.nav-tab')[1].classList.add('active');
+                document.getElementById('actionsTab').classList.add('active');
+            }
+        }
+
+        // Load livestock group
+        function loadGroup() {
+            currentGroup = document.getElementById('groupSelect').value;
+            searchTerm = ''; // Clear search
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchMessage').innerHTML = '';
+            
+            // Filter livestock
+            if (currentGroup === 'all') {
+                currentLivestock = LIVESTOCK_DATA.filter(item => !item.is_inactive);
+            } else if (currentGroup === 'inactive') {
+                currentLivestock = LIVESTOCK_DATA.filter(item => item.is_inactive);
+            } else if (currentGroup === 'special') {
+                currentLivestock = LIVESTOCK_DATA.filter(item => item.group === 'special' && !item.is_inactive);
+            } else {
+                currentLivestock = LIVESTOCK_DATA.filter(item => {
+                    return item.group === currentGroup && !item.is_inactive;
+                });
+            }
+            
+            console.log(`Group: ${currentGroup}, Showing: ${currentLivestock.length} animals`);
+            renderLivestock(currentLivestock);
+            updateStats();
+        }
+
+        // Handle search
+        function handleSearch() {
+            searchTerm = document.getElementById('searchInput').value.trim();
+            
+            if (!searchTerm) {
+                document.getElementById('searchMessage').innerHTML = '';
+                loadGroup();
+                return;
+            }
+            
+            // Search in ALL active livestock
+            const found = LIVESTOCK_DATA.filter(item => 
+                !item.is_inactive && item.id.includes(searchTerm)
+            );
+            
+            if (found.length > 0) {
+                // Found! Show them
+                currentGroup = 'search';
+                currentLivestock = found;
+                document.getElementById('searchMessage').innerHTML = `
+                    <div class="alert-info">✓ Found ${found.length} livestock matching "${searchTerm}"</div>
+                `;
+                renderLivestock(found);
+            } else {
+                // NOT FOUND - Show option to add
+                document.getElementById('searchMessage').innerHTML = `
+                    <div class="alert-info">
+                        ❌ Number "${searchTerm}" not found<br>
+                        <button class="btn btn-primary btn-small" onclick="addSearchedNumber()" style="margin-top: 10px;">
+                            ➕ Add "${searchTerm}" as new livestock
+                        </button>
+                    </div>
+                `;
+                document.getElementById('livestockList').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>No livestock found with number "${searchTerm}"</p>
+                    </div>
+                `;
+            }
+            
+            updateStats();
+        }
+
+        // Add the searched number
+        function addSearchedNumber() {
+            document.getElementById('newLivestockNumber').value = searchTerm;
+            showAddModal();
+        }
+
+        // Render livestock list
+        function renderLivestock(livestock) {
+            const container = document.getElementById('livestockList');
+            
+            if (livestock.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🐄</div>
+                        <p>Ga go na leruo mo setlhopheng seno<br><small>No livestock in this group</small></p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const key = `${currentGroup}_${selectedDate}`;
+            const todayAttendance = attendance[key] || {};
+            
+            container.innerHTML = livestock.map((item, index) => {
+                const isPresent = todayAttendance[item.id] || false;
+                const itemClass = `livestock-item ${isPresent ? 'present' : ''} ${item.is_inactive ? 'inactive' : ''}`;
+                
+                return `
+                    <div class="${itemClass}" data-livestock-id="${item.id}">
+                        <div class="livestock-info">
+                            <div class="livestock-number">${index + 1}</div>
+                            <div>
+                                <div class="livestock-name">${item.id}</div>
+                                ${item.is_inactive ? '<div class="livestock-status" style="color: #ef4444;">Ga e dire (Inactive)</div>' : ''}
+                            </div>
+                        </div>
+                        <div class="livestock-actions">
+                            <div class="checkbox-wrapper">
+                                <input type="checkbox" 
+                                       id="check_${item.id}" 
+                                       ${isPresent ? 'checked' : ''}
+                                       ${item.is_inactive ? 'disabled' : ''}
+                                       onchange="toggleAttendance('${item.id}')">
+                                <label for="check_${item.id}">Teng</label>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Toggle attendance
+        function toggleAttendance(livestockId) {
+            const key = `${currentGroup}_${selectedDate}`;
+            if (!attendance[key]) attendance[key] = {};
+            
+            const checkbox = document.getElementById(`check_${livestockId}`);
+            attendance[key][livestockId] = checkbox.checked;
+            
+            localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+            
+            if (typeof db !== 'undefined') {
+                db.saveLocalState(livestockId, checkbox.checked);
+            }
+            
+            loadGroup();
+            updateStats();
+        }
+
+        // Update stats
+        function updateStats() {
+            const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+            const total = activeLivestock.length;
+            
+            let present = 0;
+            Object.keys(attendance).forEach(key => {
+                if (key.includes(selectedDate)) {
+                    present += Object.values(attendance[key]).filter(v => v === true).length;
+                }
+            });
+            
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('presentCount').textContent = present;
+        }
+
+        // Save attendance
+        async function saveAttendance() {
+            if (!shepherdName) {
+                alert('Tsweetswee kwala leina la modisa!\nPlease enter shepherd name!');
+                return;
+            }
+            
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = '⏳ Boloka...';
+            
+            try {
+                let allPresentToday = [];
+                Object.keys(attendance).forEach(key => {
+                    if (key.includes(selectedDate)) {
+                        const present = Object.keys(attendance[key]).filter(id => attendance[key][id] === true);
+                        allPresentToday = [...new Set([...allPresentToday, ...present])];
+                    }
+                });
+                
+                if (typeof db !== 'undefined') {
+                    await db.saveAttendance(shepherdName, allPresentToday);
+                }
+                
+                localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+                
+                document.getElementById('successMessage').innerHTML = `
+                    <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!</div>
+                `;
+                
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Boloka (Save Attendance)';
+                
+                setTimeout(() => {
+                    document.getElementById('successMessage').innerHTML = '';
+                }, 3000);
+                
+                if (navigator.onLine && typeof autoSync !== 'undefined') {
+                    setTimeout(() => autoSync(), 1000);
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Boloka (Save Attendance)';
+                alert('Error saving attendance');
+            }
+        }
+
+        // Sync data
+        async function syncData() {
+            if (!navigator.onLine) {
+                alert('⚠ No internet connection!\nGa go na Inthanete!');
+                return;
+            }
+            
+            const syncBtn = document.getElementById('syncBtn');
+            syncBtn.disabled = true;
+            syncBtn.textContent = '⏳ Syncing...';
+            
+            try {
+                if (typeof autoSync !== 'undefined') {
+                    await autoSync();
+                }
+                syncBtn.disabled = false;
+                syncBtn.textContent = '🔄 Tlhabolola (Sync Data)';
+            } catch (error) {
+                console.error('Sync error:', error);
+                syncBtn.disabled = false;
+                syncBtn.textContent = '🔄 Tlhabolola (Sync Data)';
+            }
+        }
+
+        // Add livestock modal
+        function showAddModal() {
+            document.getElementById('addModal').classList.remove('hidden');
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').classList.add('hidden');
+        }
+
+        async function submitNewLivestock() {
+            const number = document.getElementById('newLivestockNumber').value.trim();
+            if (!number) {
+                alert('Tsweetswee kwala nomoro!\nPlease enter a number!');
+                return;
+            }
+            
+            const exists = LIVESTOCK_DATA.some(l => l.id === number);
+            if (exists) {
+                alert('Nomoro e e teng!\nNumber already exists!');
+                return;
+            }
+            
+            if (typeof db !== 'undefined') {
+                await db.savePendingAction('add_livestock', {
+                    livestockId: number,
+                    submittedBy: shepherdName
+                });
+            }
+            
+            alert(`✓ Rometswe! Submitted: ${number}\n\nPending admin approval.`);
+            closeAddModal();
+            document.getElementById('newLivestockNumber').value = '';
+            
+            if (navigator.onLine && typeof autoSync !== 'undefined') {
+                setTimeout(() => autoSync(), 1000);
+            }
+        }
+
+        // Register modal
+        function showRegisterModal() {
+            const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+            const select = document.getElementById('regLivestockSelect');
+            
+            select.innerHTML = '<option value="">Kgetha nomoro...</option>' +
+                activeLivestock.map(l => `<option value="${l.id}">${l.id}</option>`).join('');
+            
+            document.getElementById('regDate').value = selectedDate;
+            document.getElementById('registerModal').classList.remove('hidden');
+        }
+
+        function closeRegisterModal() {
+            document.getElementById('registerModal').classList.add('hidden');
+        }
+
+        async function submitRegistration() {
+            const livestock = document.getElementById('regLivestockSelect').value;
+            const status = document.getElementById('regStatus').value;
+            const date = document.getElementById('regDate').value;
+            
+            if (!livestock || !status || !date) {
+                alert('Tsweetswee tlatsa tsohle!\nPlease fill all fields!');
+                return;
+            }
+            
+            if (typeof db !== 'undefined') {
+                await db.savePendingAction(status, {
+                    livestockId: livestock,
+                    date: date,
+                    submittedBy: shepherdName
+                });
+            }
+            
+            alert(`✓ Ikwadisitswe! Registered:\n\nLivestock: ${livestock}\nStatus: ${status}\nDate: ${date}\n\nPending admin approval.`);
+            closeRegisterModal();
+            
+            if (navigator.onLine && typeof autoSync !== 'undefined') {
+                setTimeout(() => autoSync(), 1000);
+            }
+        }
+
+        // Online/offline status
+        function updateOnlineStatus() {
+            const indicator = document.getElementById('syncIndicator');
+            if (navigator.onLine) {
+                indicator.className = 'sync-indicator online';
+                indicator.textContent = '✓ Online';
+            } else {
+                indicator.className = 'sync-indicator offline';
+                indicator.textContent = '⚠ Offline';
+            }
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+    
+    <!-- Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .catch(err => console.log('SW registration failed'));
         }
     </script>
 </body>
