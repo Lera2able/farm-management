@@ -3140,16 +3140,7 @@
             
             // Build attendance data
             const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
-            
-            // Create CSV content (Excel-compatible)
-            let csv = "Dikgomo Attendance Report\n";
-            csv += `Month: ${monthNames[now.getMonth()]} ${now.getFullYear()}\n`;
-            csv += `Generated: ${formatDate(new Date().toISOString().split('T')[0])}\n`;
-            csv += `Shepherd: ${shepherdName || 'Not specified'}\n`;
-            csv += "\n";
-            
-            // Headers
-            csv += "No.,Livestock ID,Group,Status,Date,Shepherd\n";
+            const inactiveLivestock = LIVESTOCK_DATA.filter(l => l.is_inactive);
             
             // Get all unique dates from attendance records
             const dates = new Set();
@@ -3159,39 +3150,127 @@
             });
             const sortedDates = Array.from(dates).sort();
             
-            // Build rows
+            // Create Excel HTML format with color coding
+            let excelHTML = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        .present { background-color: #d1fae5; color: #065f46; font-weight: bold; }
+                        .absent { background-color: #fee2e2; color: #991b1b; font-weight: bold; }
+                        .header { background-color: #1e3a8a; color: white; font-weight: bold; text-align: center; }
+                        .summary { background-color: #f3f4f6; font-weight: bold; }
+                        .inactive-sold { background-color: #fef3c7; color: #92400e; }
+                        .inactive-died { background-color: #fee2e2; color: #991b1b; }
+                    </style>
+                </head>
+                <body>
+            `;
+            
+            // SHEET 1: ATTENDANCE DATA
+            excelHTML += '<div style="page-break-after: always;">';
+            excelHTML += '<h2>Dikgomo Attendance Report - ' + monthYear + '</h2>';
+            excelHTML += '<p>Generated: ' + formatDate(new Date().toISOString().split('T')[0]) + '</p>';
+            excelHTML += '<p>Shepherd: ' + (shepherdName || 'Not specified') + '</p><br>';
+            
+            excelHTML += '<table border="1" cellspacing="0" cellpadding="5">';
+            excelHTML += '<tr class="header">';
+            excelHTML += '<th>No.</th><th>Livestock ID</th><th>Group</th>';
+            
+            sortedDates.forEach(date => {
+                excelHTML += '<th>' + formatDate(date) + '</th>';
+            });
+            
+            excelHTML += '</tr>';
+            
+            // Build rows with color coding
             activeLivestock.forEach((item, index) => {
+                excelHTML += '<tr>';
+                excelHTML += '<td>' + (index + 1) + '</td>';
+                excelHTML += '<td><strong>' + item.id + '</strong></td>';
+                excelHTML += '<td>' + item.group + '</td>';
+                
                 sortedDates.forEach(date => {
                     const key = `all_${date}`;
                     const isPresent = attendance[key]?.[item.id] || false;
+                    const cellClass = isPresent ? 'present' : 'absent';
+                    const cellText = isPresent ? '✓ Present' : '✗ Absent';
                     
-                    csv += `${index + 1},${item.id},${item.group},${isPresent ? 'Present' : 'Absent'},${formatDate(date)},${shepherdName || 'N/A'}\n`;
+                    excelHTML += '<td class="' + cellClass + '">' + cellText + '</td>';
                 });
+                
+                excelHTML += '</tr>';
             });
             
+            excelHTML += '</table><br><br>';
+            
             // Summary section
-            csv += "\n\nSUMMARY\n";
-            csv += `Total Livestock,${activeLivestock.length}\n`;
+            excelHTML += '<h3>Summary</h3>';
+            excelHTML += '<table border="1" cellspacing="0" cellpadding="5">';
+            excelHTML += '<tr class="header"><th>Date</th><th>Present</th><th>Absent</th><th>Total</th><th>%</th></tr>';
             
             sortedDates.forEach(date => {
                 const key = `all_${date}`;
                 const presentCount = Object.values(attendance[key] || {}).filter(v => v === true).length;
-                csv += `${formatDate(date)},${presentCount} present,${activeLivestock.length - presentCount} absent\n`;
+                const absentCount = activeLivestock.length - presentCount;
+                const percentage = ((presentCount / activeLivestock.length) * 100).toFixed(1);
+                
+                excelHTML += '<tr class="summary">';
+                excelHTML += '<td>' + formatDate(date) + '</td>';
+                excelHTML += '<td class="present">' + presentCount + '</td>';
+                excelHTML += '<td class="absent">' + absentCount + '</td>';
+                excelHTML += '<td>' + activeLivestock.length + '</td>';
+                excelHTML += '<td>' + percentage + '%</td>';
+                excelHTML += '</tr>';
             });
             
+            excelHTML += '</table>';
+            excelHTML += '</div>';
+            
+            // SHEET 2: INACTIVE LIVESTOCK
+            excelHTML += '<div style="page-break-before: always;">';
+            excelHTML += '<h2>Inactive Livestock (Sold/Died)</h2>';
+            excelHTML += '<p>Total Inactive: ' + inactiveLivestock.length + '</p><br>';
+            
+            excelHTML += '<table border="1" cellspacing="0" cellpadding="5">';
+            excelHTML += '<tr class="header">';
+            excelHTML += '<th>No.</th><th>Livestock ID</th><th>Group</th><th>Status</th><th>Date</th></tr>';
+            
+            inactiveLivestock.forEach((item, index) => {
+                const statusClass = item.status === 'sold' ? 'inactive-sold' : 'inactive-died';
+                const statusText = item.status === 'sold' ? 'Rekisitswe (Sold)' : 'Sule (Died)';
+                
+                excelHTML += '<tr>';
+                excelHTML += '<td>' + (index + 1) + '</td>';
+                excelHTML += '<td><strong>' + item.id + '</strong></td>';
+                excelHTML += '<td>' + item.group + '</td>';
+                excelHTML += '<td class="' + statusClass + '">' + statusText + '</td>';
+                excelHTML += '<td>' + (item.inactive_date ? formatDate(item.inactive_date) : 'N/A') + '</td>';
+                excelHTML += '</tr>';
+            });
+            
+            if (inactiveLivestock.length === 0) {
+                excelHTML += '<tr><td colspan="5" style="text-align: center; color: #6b7280;">No inactive livestock</td></tr>';
+            }
+            
+            excelHTML += '</table>';
+            excelHTML += '</div>';
+            
+            excelHTML += '</body></html>';
+            
             // Create downloadable file
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([excelHTML], { type: 'application/vnd.ms-excel' });
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             
             link.setAttribute("href", url);
-            link.setAttribute("download", `Dikgomo_Attendance_${monthYear}.csv`);
+            link.setAttribute("download", `Dikgomo_Attendance_${monthYear}.xls`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             
-            alert(`✓ Downloaded!\n\nFile: Dikgomo_Attendance_${monthYear}.csv\n\nYou can now upload this to OneDrive!`);
+            alert(`✓ Downloaded!\n\nFile: Dikgomo_Attendance_${monthYear}.xls\n\n✅ Green = Present\n❌ Red = Absent\n\nIncludes 2 sheets:\n1. Attendance (color-coded)\n2. Inactive Livestock\n\nYou can now upload to OneDrive!`);
         }
 
         // Edit livestock number
