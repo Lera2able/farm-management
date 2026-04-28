@@ -481,6 +481,17 @@
             color: #d97706;
             border: 2px solid #f59e0b;
         }
+        
+        .floating-save-btn {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 40px);
+            max-width: 1160px;
+            z-index: 998;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+        }
     </style>
 </head>
 <body>
@@ -559,15 +570,15 @@
                 </div>
 
                 <!-- Livestock List -->
-                <div id="livestockList" class="livestock-list">
+                <div id="livestockList" class="livestock-list" style="margin-bottom: 100px;">
                     <div class="empty-state">
                         <div class="empty-state-icon">🐄</div>
                         <p>Loading livestock data...</p>
                     </div>
                 </div>
 
-                <!-- Save Button -->
-                <button class="btn btn-success btn-full" onclick="saveAttendance()" id="saveBtn">
+                <!-- Save Button - FLOATING -->
+                <button class="btn btn-success btn-full floating-save-btn" onclick="saveAttendance()" id="saveBtn">
                     💾 Boloka (Save Attendance)
                 </button>
 
@@ -633,7 +644,8 @@
             </div>
             <div class="form-group">
                 <label>Nomoro ya Leruo (Livestock Number)</label>
-                <select id="regLivestockSelect">
+                <input type="text" id="regSearchInput" placeholder="Batla nomoro... (Search)" oninput="filterRegisterDropdown()" style="margin-bottom: 10px;">
+                <select id="regLivestockSelect" size="8" style="height: 200px;">
                     <option value="">Kgetha nomoro...</option>
                 </select>
             </div>
@@ -2936,10 +2948,34 @@
             }
         }
 
+
+        // Filter register dropdown based on search
+        function filterRegisterDropdown() {
+            const searchTerm = document.getElementById('regSearchInput').value.toLowerCase();
+            const select = document.getElementById('regLivestockSelect');
+            const allLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+            
+            select.innerHTML = '<option value="">Kgetha nomoro...</option>';
+            
+            const filtered = allLivestock.filter(l => 
+                l.id.toLowerCase().includes(searchTerm)
+            );
+            
+            filtered.forEach(l => {
+                const option = document.createElement('option');
+                option.value = l.id;
+                option.textContent = l.id;
+                select.appendChild(option);
+            });
+        }
+
         // Register modal
         function showRegisterModal() {
             const allLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive); // Show ALL active including Rikus, odd IDs
             const select = document.getElementById('regLivestockSelect');
+            
+            // Clear search
+            document.getElementById('regSearchInput').value = '';
             
             select.innerHTML = '<option value="">Kgetha nomoro...</option>' +
                 allLivestock.map(l => `<option value="${l.id}">${l.id}</option>`).join('');
@@ -3018,6 +3054,34 @@
             }
             
             document.getElementById('inactiveModal').classList.remove('hidden');
+        }
+
+
+        // Edit livestock number
+        function editLivestock(livestockId) {
+            const newNumber = prompt(`Edit Livestock Number\n\nCurrent: ${livestockId}\nEnter new number:`);
+            if (!newNumber || newNumber === livestockId) return;
+            
+            // Check if new number already exists
+            const exists = LIVESTOCK_DATA.some(l => l.id === newNumber && l.id !== livestockId);
+            if (exists) {
+                alert('Number already exists!');
+                return;
+            }
+            
+            // Update the number
+            const item = LIVESTOCK_DATA.find(l => l.id === livestockId);
+            if (item) {
+                item.id = newNumber;
+                localStorage.setItem('dikgomo_livestock', JSON.stringify(LIVESTOCK_DATA));
+                alert(`✓ Updated: ${livestockId} → ${newNumber}`);
+                loadGroup();
+            }
+        }
+
+        // Quick action - opens action modal
+        function quickAction(livestockId) {
+            switchTab('actions');
         }
 
         function closeInactiveModal() {
