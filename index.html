@@ -611,6 +611,11 @@
                         <div class="action-title">View Inactive</div>
                         <div class="action-desc">See all sold/died livestock</div>
                     </div>
+                    <div class="action-card" onclick="downloadExcelReport()">
+                        <div class="action-icon">📥</div>
+                        <div class="action-title">Download Excel</div>
+                        <div class="action-desc">Export attendance to Excel file</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2837,6 +2842,12 @@
             document.getElementById('presentCount').textContent = present;
         }
 
+        // WEBHOOK CONFIGURATION - Paste your Power Automate URL here
+        const WEBHOOK_CONFIG = {
+            url: '', // PASTE YOUR POWER AUTOMATE WEBHOOK URL HERE
+            enabled: false // Set to true once you have the URL
+        };
+
         // Save attendance
         async function saveAttendance() {
             if (!shepherdName) {
@@ -2849,6 +2860,7 @@
             saveBtn.textContent = '⏳ Boloka...';
             
             try {
+                // Collect all present livestock for today
                 let allPresentToday = [];
                 Object.keys(attendance).forEach(key => {
                     if (key.includes(selectedDate)) {
@@ -2857,14 +2869,42 @@
                     }
                 });
                 
+                // Build attendance array for webhook
+                const attendanceData = LIVESTOCK_DATA.filter(l => !l.is_inactive).map(l => ({
+                    id: l.id,
+                    group: l.group,
+                    present: allPresentToday.includes(l.id)
+                }));
+                
+                const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+                const presentCount = allPresentToday.length;
+                const absentCount = activeLivestock.length - presentCount;
+                
+                // Save to localStorage first
                 if (typeof db !== 'undefined') {
                     await db.saveAttendance(shepherdName, allPresentToday);
                 }
-                
                 localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
                 
+                // Send to Power Automate webhook if configured
+                if (WEBHOOK_CONFIG.enabled && WEBHOOK_CONFIG.url) {
+                    await sendToWebhook({
+                        timestamp: new Date().toISOString(),
+                        date: formatDate(selectedDate),
+                        shepherd: shepherdName,
+                        attendance: attendanceData,
+                        summary: {
+                            total: activeLivestock.length,
+                            present: presentCount,
+                            absent: absentCount,
+                            percentage: ((presentCount / activeLivestock.length) * 100).toFixed(2)
+                        },
+                        inactiveCount: LIVESTOCK_DATA.filter(l => l.is_inactive).length
+                    });
+                }
+                
                 document.getElementById('successMessage').innerHTML = `
-                    <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!</div>
+                    <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!${WEBHOOK_CONFIG.enabled ? ' Synced to Excel!' : ''}</div>
                 `;
                 
                 saveBtn.disabled = false;
@@ -2874,14 +2914,35 @@
                     document.getElementById('successMessage').innerHTML = '';
                 }, 3000);
                 
-                if (navigator.onLine && typeof autoSync !== 'undefined') {
-                    setTimeout(() => autoSync(), 1000);
-                }
             } catch (error) {
                 console.error('Save error:', error);
                 saveBtn.disabled = false;
                 saveBtn.textContent = '💾 Boloka (Save Attendance)';
-                alert('Error saving attendance');
+                alert('Error saving attendance: ' + error.message);
+            }
+        }
+        
+        // Send data to Power Automate webhook
+        async function sendToWebhook(data) {
+            try {
+                const response = await fetch(WEBHOOK_CONFIG.url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Webhook failed: ${response.status}`);
+                }
+                
+                console.log('✓ Data sent to Power Automate successfully');
+                return true;
+            } catch (error) {
+                console.error('Webhook error:', error);
+                // Don't fail the save if webhook fails
+                return false;
             }
         }
 
@@ -3068,6 +3129,70 @@
             document.getElementById('inactiveModal').classList.remove('hidden');
         }
 
+
+
+        // Download Excel Report
+        function downloadExcelReport() {
+            const monthNames = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"];
+            const now = new Date(selectedDate);
+            const monthYear = monthNames[now.getMonth()] + now.getFullYear();
+            
+            // Build attendance data
+            const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+            
+            // Create CSV content (Excel-compatible)
+            let csv = "Dikgomo Attendance Report\n";
+            csv += `Month: ${monthNames[now.getMonth()]} ${now.getFullYear()}\n`;
+            csv += `Generated: ${formatDate(new Date().toISOString().split('T')[0])}\n`;
+            csv += `Shepherd: ${shepherdName || 'Not specified'}\n`;
+            csv += "\n";
+            
+            // Headers
+            csv += "No.,Livestock ID,Group,Status,Date,Shepherd\n";
+            
+            // Get all unique dates from attendance records
+            const dates = new Set();
+            Object.keys(attendance).forEach(key => {
+                const dateMatch = key.match(/_(\d{4}-\d{2}-\d{2})/);
+                if (dateMatch) dates.add(dateMatch[1]);
+            });
+            const sortedDates = Array.from(dates).sort();
+            
+            // Build rows
+            activeLivestock.forEach((item, index) => {
+                sortedDates.forEach(date => {
+                    const key = `all_${date}`;
+                    const isPresent = attendance[key]?.[item.id] || false;
+                    
+                    csv += `${index + 1},${item.id},${item.group},${isPresent ? 'Present' : 'Absent'},${formatDate(date)},${shepherdName || 'N/A'}\n`;
+                });
+            });
+            
+            // Summary section
+            csv += "\n\nSUMMARY\n";
+            csv += `Total Livestock,${activeLivestock.length}\n`;
+            
+            sortedDates.forEach(date => {
+                const key = `all_${date}`;
+                const presentCount = Object.values(attendance[key] || {}).filter(v => v === true).length;
+                csv += `${formatDate(date)},${presentCount} present,${activeLivestock.length - presentCount} absent\n`;
+            });
+            
+            // Create downloadable file
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Dikgomo_Attendance_${monthYear}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            alert(`✓ Downloaded!\n\nFile: Dikgomo_Attendance_${monthYear}.csv\n\nYou can now upload this to OneDrive!`);
+        }
 
         // Edit livestock number
         function editLivestock(livestockId) {
