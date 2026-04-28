@@ -2767,24 +2767,36 @@
                 const isPresent = todayAttendance[item.id] || false;
                 const itemClass = `livestock-item ${isPresent ? 'present' : ''} ${item.is_inactive ? 'inactive' : ''}`;
                 
+                let statusText = '';
+                if (item.is_inactive) {
+                    statusText = `<div class="livestock-status" style="color: #ef4444;">${item.status === 'sold' ? 'Rekisitswe (Sold)' : 'Sule (Died)'}</div>`;
+                }
+                
                 return `
                     <div class="${itemClass}" data-livestock-id="${item.id}">
                         <div class="livestock-info">
                             <div class="livestock-number">${index + 1}</div>
                             <div>
                                 <div class="livestock-name">${item.id}</div>
-                                ${item.is_inactive ? '<div class="livestock-status" style="color: #ef4444;">Ga e dire (Inactive)</div>' : ''}
+                                ${statusText}
                             </div>
                         </div>
-                        <div class="livestock-actions">
+                        <div class="livestock-actions" style="display: flex; gap: 8px; align-items: center;">
+                            ${!item.is_inactive ? `
+                            <button class="btn btn-primary btn-small" onclick="editLivestock('${item.id}')" style="white-space: nowrap;">
+                                ✏️ Edit
+                            </button>
                             <div class="checkbox-wrapper">
                                 <input type="checkbox" 
                                        id="check_${item.id}" 
                                        ${isPresent ? 'checked' : ''}
-                                       ${item.is_inactive ? 'disabled' : ''}
                                        onchange="toggleAttendance('${item.id}')">
                                 <label for="check_${item.id}">Teng</label>
                             </div>
+                            <button class="btn btn-warning btn-small" onclick="quickAction('${item.id}')" style="white-space: nowrap;">
+                                + Action
+                            </button>
+                            ` : ''}
                         </div>
                     </div>
                 `;
