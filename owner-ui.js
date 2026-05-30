@@ -179,6 +179,7 @@
 
     buildScan();
     buildAnimEditor();
+    buildSickDeadEditor();
     refreshButton();
   }
 
@@ -223,6 +224,8 @@
     refreshButton();
     if (typeof window.loadGroup === 'function') window.loadGroup();
     if (typeof window.updateActionsVisibility === 'function') window.updateActionsVisibility();
+    if (typeof window.renderSick === 'function') window.renderSick();
+    if (typeof window.renderDead === 'function') window.renderDead();
     loadHerd();
     if (F.isSuperSuper()) loadUsers();
   }
@@ -236,7 +239,7 @@
     else msg('owGateMsg', (res.error === 'Wrong password' ? 'Password e fosagetse. (Wrong password.)' : res.error), false);
   }
 
-  function lock() { F.adminLogout(); refreshButton(); if (typeof window.loadGroup === 'function') window.loadGroup(); if (typeof window.updateActionsVisibility === 'function') window.updateActionsVisibility(); showGate(); }
+  function lock() { F.adminLogout(); refreshButton(); if (typeof window.loadGroup === 'function') window.loadGroup(); if (typeof window.updateActionsVisibility === 'function') window.updateActionsVisibility(); if (typeof window.renderSick === 'function') window.renderSick(); if (typeof window.renderDead === 'function') window.renderDead(); showGate(); }
 
   async function loadHerd() {
     try {
@@ -631,6 +634,85 @@
       if (typeof window.updateStats === 'function') window.updateStats();
     } catch (e) {}
   }
+
+  // ---- Sick / Dead entry editor (logged-in only): comment + add/remove ----
+  let sdEditing = { id: null, type: 'sick' };
+  function buildSickDeadEditor() {
+    const m = document.createElement('div');
+    m.id = 'sdModal'; m.className = 'ow-overlay ow-hidden';
+    m.innerHTML = `
+      <div class="ow-card">
+        <span class="ow-x" id="sdClose">&times;</span>
+        <h2 id="sdTitle">Edit</h2>
+        <div id="sdMeta" class="ow-meta"></div>
+        <button class="ow-btn" id="sdToggle" style="margin-top:10px"></button>
+        <div class="ow-field" style="margin-top:14px"><label for="sdCmt">Dikakanyo (Comment / note)</label><textarea id="sdCmt" class="ow-input" rows="2" placeholder="Kwala kakanyo..."></textarea></div>
+        <button class="ow-btn ow-btn-grey" id="sdAddCmt">Engadisa Kakanyo (Add comment)</button>
+        <div class="ow-msg" id="sdMsg"></div>
+        <div id="sdCmtList" class="ow-comments"></div>
+      </div>`;
+    document.body.appendChild(m);
+    document.getElementById('sdClose').onclick = function () { document.getElementById('sdModal').classList.add('ow-hidden'); };
+    document.getElementById('sdAddCmt').onclick = sdAddComment;
+    document.getElementById('sdToggle').onclick = sdToggleMembership;
+  }
+  function sdInList(id, type) {
+    if (type === 'dead') return !!(window.isDead && window.isDead(id));
+    return !!(window.isSick && window.isSick(id));
+  }
+  function sdRefreshToggle() {
+    const id = sdEditing.id, type = sdEditing.type;
+    const inList = sdInList(id, type);
+    const btn = document.getElementById('sdToggle');
+    if (type === 'dead') btn.textContent = inList ? 'Tlosa mo go Sule (Remove)' : 'Tsenya mo go Sule (Add)';
+    else btn.textContent = inList ? 'Tlosa mo Bolwetse (Remove)' : 'Tsenya mo Bolwetse (Add)';
+    btn.style.background = inList ? '#ef4444' : '';
+  }
+  function sdToggleMembership() {
+    const id = sdEditing.id, type = sdEditing.type;
+    const inList = sdInList(id, type);
+    if (type === 'dead') { if (window.setDeadState) window.setDeadState(id, !inList); }
+    else { if (window.setSickState) window.setSickState(id, !inList); }
+    sdRefreshToggle();
+    msg('sdMsg', inList ? 'Tlositswe. \u2713 (Removed.)' : 'Tsentswe. \u2713 (Added.)', true);
+  }
+  async function sdAddComment() {
+    const id = sdEditing.id, type = sdEditing.type;
+    const text = document.getElementById('sdCmt').value.trim();
+    if (!text) { msg('sdMsg', 'Kwala kakanyo pele. (Write something first.)', false); return; }
+    const tag = type === 'dead' ? '[Sule] ' : '[Bolwetse] ';
+    const btn = document.getElementById('sdAddCmt'); btn.disabled = true;
+    const res = await F.addComment({ livestockId: id, comment: tag + text });
+    btn.disabled = false;
+    if (authFailed(res)) return;
+    if (res.ok) { document.getElementById('sdCmt').value = ''; msg('sdMsg', 'Engaditswe! \u2713 (Added.)', true); sdLoadComments(id); }
+    else msg('sdMsg', 'Phoso: ' + (res.error || ''), false);
+  }
+  async function sdLoadComments(id) {
+    const res = await F.getComments(id);
+    if (authFailed(res)) return;
+    const list = document.getElementById('sdCmtList');
+    if (!res.ok) { list.innerHTML = ''; return; }
+    if (!res.comments.length) { list.innerHTML = '<div class="ow-meta">Ga go na dikakanyo. (No comments yet.)</div>'; return; }
+    list.innerHTML = res.comments.map(function (c) {
+      const d = c.created_at ? new Date(c.created_at).toLocaleDateString('en-ZA') : '';
+      return '<div class="ow-comment">' + esc(c.comment) + '<div class="ow-cmeta">' + esc(c.author || '') + ' \u00b7 ' + esc(d) + '</div></div>';
+    }).join('');
+  }
+  async function farmSickDeadEdit(id, type) {
+    if (!F.isAdmin()) return;
+    type = (type === 'dead') ? 'dead' : 'sick';
+    sdEditing = { id: id, type: type };
+    document.getElementById('sdModal').classList.remove('ow-hidden');
+    document.getElementById('sdTitle').textContent = (type === 'dead' ? 'Sule (Dead): ' : 'Bolwetse (Sick): ') + id;
+    document.getElementById('sdMeta').textContent = 'Tlosa fa go le phoso, kgotsa o engadise kakanyo. (Fix a wrong entry, or add a note.)';
+    document.getElementById('sdCmt').value = '';
+    clearMsg('sdMsg');
+    document.getElementById('sdCmtList').innerHTML = '';
+    sdRefreshToggle();
+    sdLoadComments(id);
+  }
+  window.farmSickDeadEdit = farmSickDeadEdit;
 
   window.farmEditAnimal = farmEditAnimal;
 

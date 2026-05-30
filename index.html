@@ -2816,9 +2816,10 @@
             saveSickDead();
             renderDead();
         }
-        function renderTickList(containerId, searchId, setObj, idPrefix, toggleFn, label, tint) {
+        function renderTickList(containerId, searchId, setObj, idPrefix, toggleFn, label, tint, type) {
             const container = document.getElementById(containerId);
             if (!container) return;
+            const canEdit = !!(window.FarmData && window.FarmData.isAdmin());
             const q = (document.getElementById(searchId) ? document.getElementById(searchId).value : '').trim().toLowerCase();
             let list = LIVESTOCK_DATA.filter(l => !l.is_inactive);
             if (q) list = list.filter(l => String(l.id).toLowerCase().includes(q));
@@ -2828,27 +2829,38 @@
             }
             container.innerHTML = list.map((item, index) => {
                 const on = !!setObj[item.id];
+                const editBtn = canEdit
+                    ? `<button class="btn btn-primary btn-small" onclick="farmSickDeadEdit('${item.id}','${type}')" style="white-space:nowrap;">✏️ Edit</button>`
+                    : '';
                 return `
                     <div class="livestock-item" data-livestock-id="${item.id}" style="${on ? 'background:' + tint + ';' : ''}">
                         <div class="livestock-info">
                             <div class="livestock-number">${index + 1}</div>
                             <div><div class="livestock-name">${item.id}</div></div>
                         </div>
-                        <div class="checkbox-wrapper">
-                            <input type="checkbox" id="${idPrefix}${item.id}" ${on ? 'checked' : ''} onchange="${toggleFn}('${item.id}')">
-                            <label for="${idPrefix}${item.id}">${label}</label>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            ${editBtn}
+                            <div class="checkbox-wrapper">
+                                <input type="checkbox" id="${idPrefix}${item.id}" ${on ? 'checked' : ''} onchange="${toggleFn}('${item.id}')">
+                                <label for="${idPrefix}${item.id}">${label}</label>
+                            </div>
                         </div>
                     </div>`;
             }).join('');
         }
         function renderSick() {
-            renderTickList('sickList', 'sickSearch', sickSet, 'sick_', 'toggleSick', 'Bolwetse', '#fff7ed');
+            renderTickList('sickList', 'sickSearch', sickSet, 'sick_', 'toggleSick', 'Bolwetse', '#fff7ed', 'sick');
             const c = document.getElementById('sickCount'); if (c) c.textContent = Object.keys(sickSet).length;
         }
         function renderDead() {
-            renderTickList('deadList', 'deadSearch', deadSet, 'deadcheck_', 'toggleDead', 'Sule', '#fef2f2');
+            renderTickList('deadList', 'deadSearch', deadSet, 'deadcheck_', 'toggleDead', 'Sule', '#fef2f2', 'dead');
             const c = document.getElementById('deadCount'); if (c) c.textContent = Object.keys(deadSet).length;
         }
+        // owner-only programmatic add/remove for the sick/dead lists
+        window.setSickState = function (id, on) { if (on) sickSet[id] = true; else delete sickSet[id]; saveSickDead(); renderSick(); };
+        window.setDeadState = function (id, on) { if (on) deadSet[id] = true; else delete deadSet[id]; saveSickDead(); renderDead(); };
+        window.isSick = function (id) { return !!sickSet[id]; };
+        window.isDead = function (id) { return !!deadSet[id]; };
 
         // Load livestock group
         function loadGroup() {
