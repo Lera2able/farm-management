@@ -1,8 +1,12 @@
-// Farm data + admin layer (Supabase)
+// Farm data + owner layer (Supabase)
 //
-// This replaces the job the old Replit/Express server used to do. It loads the
-// herd (with lineage), handles the owner login, and lets the owner edit lineage
-// and register calves. Daily attendance still goes through sync.js as before.
+// Replaces the old Replit/Express server. Loads the herd (with lineage), checks
+// the owner password, and does lineage edits + calf registration.
+//
+// Two levels of use:
+//   - Daily app (workers): NO login. Just reads the herd and marks attendance.
+//   - Owner screens (you): unlocked by a simple password, checked server-side by
+//     the "farm-admin" Supabase function. The password is never in this file.
 //
 // Everything hangs off a single global: window.FarmData
 
@@ -10,8 +14,10 @@
   const SUPABASE_URL = 'https://vousucfboetqtppjywlg.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_mOLSxtGicEchOdWIdPL6BA_aaybClra'; // public key, safe in the browser
   const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  const ADMIN_FN = `${SUPABASE_URL}/functions/v1/farm-admin`;
 
   let _client = null;
+  let _ownerPassword = null; // held in memory only; cleared on refresh or logout
 
   async function getClient() {
     if (_client) return _client;
@@ -28,7 +34,6 @@
     return _client;
   }
 
-  // Work out the group from a tag number (same rule the app already uses)
   function groupForId(id) {
     const s = String(id);
     if (s.startsWith('11')) return '11';
@@ -40,7 +45,6 @@
     return 'other';
   }
 
-  // Turn a database row into the shape the app uses (camelCase)
   function fromRow(r) {
     return {
       id: r.id,
@@ -55,7 +59,7 @@
     };
   }
 
-  // --- Herd ---
+  // --- Herd (open read, no login needed) ---
 
   async function loadHerd() {
     const sb = await getClient();
@@ -78,69 +82,49 @@
     return { total: herd.length, active, inactive: herd.length - active, byGroup };
   }
 
-  // --- Admin login (Supabase Auth) ---
-  // Create one owner account in Supabase: Authentication > Users > Add user.
+  // --- Owner password gate (checked by the farm-admin function) ---
 
-  async function adminLogin(email, password) {
-    const sb = await getClient();
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+  async function callAdmin(action, payload) {
+    const res = await fetch(ADMIN_FN, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ password: _ownerPassword, action, payload }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}` };
+    return { ok: true, ...data };
   }
 
-  async function adminLogout() {
-    const sb = await getClient();
-    await sb.auth.signOut();
+  // Type the password once to unlock the owner screens
+  async function adminLogin(password) {
+    _ownerPassword = password;
+    const res = await callAdmin('login');
+    if (!res.ok) _ownerPassword = null; // wrong password, stay locked
+    return res;
   }
 
-  async function isAdmin() {
-    const sb = await getClient();
-    const { data } = await sb.auth.getSession();
-    return !!(data && data.session);
+  function adminLogout() {
+    _ownerPassword = null;
   }
 
-  // --- Owner actions ---
+  function isAdmin() {
+    return _ownerPassword !== null;
+  }
 
-  // Set or change an animal's parents, sex and date of birth
+  // --- Owner actions (require the password) ---
+
   async function updateLineage(id, { motherId, fatherId, sex, dateOfBirth }) {
-    const sb = await getClient();
-    const { error } = await sb
-      .from('farm_livestock')
-      .update({
-        mother_id: motherId || null,
-        father_id: fatherId || null,
-        sex: sex || null,
-        date_of_birth: dateOfBirth || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-    if (error) throw error;
-    return true;
+    if (!isAdmin()) return { ok: false, error: 'Locked' };
+    return callAdmin('updateLineage', { id, motherId, fatherId, sex, dateOfBirth });
   }
 
-  // Register a new calf, with optional lineage
   async function registerCalf({ id, motherId, fatherId, sex, dateOfBirth, group }) {
-    const sb = await getClient();
-    const { data, error } = await sb
-      .from('farm_livestock')
-      .insert({
-        id: String(id).trim(),
-        group_name: group || groupForId(id),
-        is_inactive: false,
-        status: 'active',
-        mother_id: motherId || null,
-        father_id: fatherId || null,
-        sex: sex || null,
-        date_of_birth: dateOfBirth || null,
-      })
-      .select()
-      .single();
-    if (error) {
-      // 23505 = duplicate primary key (tag already exists)
-      if (error.code === '23505') return { ok: false, error: 'Nomoro e e teng' };
-      return { ok: false, error: error.message };
-    }
-    return { ok: true, animal: fromRow(data) };
+    if (!isAdmin()) return { ok: false, error: 'Locked' };
+    return callAdmin('registerCalf', { id, motherId, fatherId, sex, dateOfBirth, group });
   }
 
   window.FarmData = {
