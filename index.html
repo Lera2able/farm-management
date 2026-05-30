@@ -525,7 +525,7 @@
             <button class="nav-tab active" onclick="switchTab('register')">
                 📋 Livestock Register
             </button>
-            <button class="nav-tab" onclick="switchTab('actions')">
+            <button class="nav-tab" id="actionsTabBtn" onclick="switchTab('actions')" style="display:none">
                 ⚙️ Actions
             </button>
         </div>
@@ -633,6 +633,11 @@
                         <div class="action-icon">📥</div>
                         <div class="action-title">Download Excel</div>
                         <div class="action-desc">Export attendance to Excel file</div>
+                    </div>
+                    <div class="action-card" onclick="downloadMaster()">
+                        <div class="action-icon">📒</div>
+                        <div class="action-title">Download Master</div>
+                        <div class="action-desc">Full workbook, a tab per date</div>
                     </div>
                 </div>
             </div>
@@ -2703,10 +2708,21 @@
             // Then pull the latest herd from Supabase so newly registered
             // calves show up. Safe offline: it does nothing without a signal.
             refreshHerdFromCloud();
+            updateActionsVisibility();
         }
 
         // Switch tabs
+        function updateActionsVisibility() {
+            const btn = document.getElementById("actionsTabBtn");
+            const isAdmin = !!(window.FarmData && window.FarmData.isAdmin());
+            if (btn) btn.style.display = isAdmin ? "" : "none";
+            if (!isAdmin) {
+                const at = document.getElementById("actionsTab");
+                if (at && at.classList.contains("active")) switchTab("register");
+            }
+        }
         function switchTab(tab) {
+            if (tab === "actions" && !(window.FarmData && window.FarmData.isAdmin())) tab = "register";
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             
@@ -2812,6 +2828,7 @@
             
             const key = `${currentGroup}_${selectedDate}`;
             const todayAttendance = attendance[key] || {};
+            const canEdit = !!(window.FarmData && window.FarmData.isAdmin());
             
             container.innerHTML = livestock.map((item, index) => {
                 const isPresent = todayAttendance[item.id] || false;
@@ -2833,7 +2850,7 @@
                         </div>
                         <div class="livestock-actions" style="display: flex; gap: 8px; align-items: center;">
                             ${!item.is_inactive ? `
-                            <button class="btn btn-primary btn-small" onclick="editLivestock('${item.id}')" style="white-space: nowrap;">
+                            <button class="btn btn-primary btn-small" onclick="farmEditAnimal('${item.id}')" style="white-space: nowrap; ${canEdit ? '' : 'display:none;'}">
                                 ✏️ Edit
                             </button>
                             <div class="checkbox-wrapper">
@@ -3405,6 +3422,62 @@
                 indicator.className = 'sync-indicator offline';
                 indicator.textContent = '⚠ Offline';
             }
+        }
+
+        // ---- Download the Master workbook (history + a tab per recorded date) ----
+        async function ensureSheetJS() {
+            if (window.XLSX) return;
+            await new Promise(function (resolve, reject) {
+                const sc = document.createElement('script');
+                sc.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                sc.onload = resolve; sc.onerror = function () { reject(new Error('lib')); };
+                document.head.appendChild(sc);
+            });
+        }
+        function ymdToDmy(ymd) { const p = ymd.split('-'); return p.length === 3 ? (p[2] + '-' + p[1] + '-' + p[0]) : ymd; }
+        function presentByDate() {
+            const map = {};
+            Object.keys(attendance).forEach(function (k) {
+                const ymd = k.slice(-10);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+                if (!map[ymd]) map[ymd] = {};
+                Object.keys(attendance[k]).forEach(function (id) { if (attendance[k][id] === true) map[ymd][id] = true; });
+            });
+            return map;
+        }
+        async function downloadMaster() {
+            try { await ensureSheetJS(); }
+            catch (e) { alert('Could not load the spreadsheet tool. Check your connection and try again.'); return; }
+            let wb;
+            try {
+                const resp = await fetch('master_stock.xlsx', { cache: 'no-store' });
+                if (!resp.ok) throw new Error('no base');
+                wb = XLSX.read(await resp.arrayBuffer(), { type: 'array' });
+            } catch (e) {
+                wb = XLSX.utils.book_new();
+                const roster = [['Tag No', 'Group', 'Status']];
+                LIVESTOCK_DATA.forEach(function (l) { roster.push([l.id, l.group, l.is_inactive ? 'Inactive' : 'Active']); });
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(roster), 'Dikgomo Master');
+            }
+            const existing = {};
+            wb.SheetNames.forEach(function (n) { existing[n] = true; });
+            const byDate = presentByDate();
+            const activeIds = LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; }).map(function (l) { return l.id; });
+            let added = 0;
+            Object.keys(byDate).sort().forEach(function (ymd) {
+                const sheetName = ymdToDmy(ymd).slice(0, 31);
+                if (existing[sheetName]) return;
+                const present = byDate[ymd];
+                const rows = [['Tag No', 'Status']];
+                activeIds.forEach(function (id) { rows.push([id, present[id] ? 'Present' : 'Absent']); });
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), sheetName);
+                existing[sheetName] = true; added++;
+            });
+            const today = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(wb, 'Dikgomo_Master_' + today + '.xlsx');
+            setTimeout(function () {
+                alert(added > 0 ? ('Master downloaded with ' + added + ' date tab(s) added.') : 'Master downloaded (no new dates to add).');
+            }, 200);
         }
 
         // Initialize on load

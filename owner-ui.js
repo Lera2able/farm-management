@@ -15,6 +15,7 @@
   const F = window.FarmData;
   let herd = [];
   let herdById = {};
+  let animEditingId = null;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
@@ -70,6 +71,11 @@
       .ow-pill{font-size:11px;padding:2px 8px;border-radius:10px;background:#e5e7eb;color:#374151;margin-left:8px}
       .ow-pill.super2{background:#fde68a;color:#92400e}
       .ow-del{background:#ef4444;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer}
+      #ocrBtn{position:fixed;left:12px;bottom:60px;z-index:1500;background:#3b82f6;color:#fff;border:none;border-radius:24px;padding:10px 16px;font-size:14px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;align-items:center;gap:6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+      #ocrBtn:active{transform:scale(.97)}
+      .ocr-st{font-weight:700;padding:0 6px;white-space:nowrap}
+      .ocr-st.st-ok{color:#059669}.ocr-st.st-unknown{color:#d97706}.ocr-st.st-inactive{color:#ef4444}
+      .ocr-val{max-width:150px}
     `;
     const el = document.createElement('style');
     el.textContent = css;
@@ -171,12 +177,16 @@
     document.getElementById('calfSave').onclick = saveCalf;
     document.getElementById('auCreate').onclick = createUser;
 
+    buildScan();
+    buildAnimEditor();
     refreshButton();
   }
 
   function refreshButton() {
     const u = F.getUser();
     document.getElementById('ownerBtnLabel').textContent = u ? u.name : 'Mong';
+    const ob = document.getElementById('ocrBtn');
+    if (ob) ob.style.display = F.isAdmin() ? 'flex' : 'none';
   }
 
   function msg(id, text, ok) {
@@ -211,6 +221,8 @@
     document.getElementById('owHello').textContent = u ? ('Dumela, ' + u.name) : 'Mong';
     document.getElementById('owAccounts').style.display = F.isSuperSuper() ? '' : 'none';
     refreshButton();
+    if (typeof window.loadGroup === 'function') window.loadGroup();
+    if (typeof window.updateActionsVisibility === 'function') window.updateActionsVisibility();
     loadHerd();
     if (F.isSuperSuper()) loadUsers();
   }
@@ -224,7 +236,7 @@
     else msg('owGateMsg', (res.error === 'Wrong password' ? 'Password e fosagetse. (Wrong password.)' : res.error), false);
   }
 
-  function lock() { F.adminLogout(); refreshButton(); showGate(); }
+  function lock() { F.adminLogout(); refreshButton(); if (typeof window.loadGroup === 'function') window.loadGroup(); if (typeof window.updateActionsVisibility === 'function') window.updateActionsVisibility(); showGate(); }
 
   async function loadHerd() {
     try {
@@ -358,6 +370,248 @@
     if (res.ok) { msg('auMsg', 'Phimotswe. (Deleted.)', true); loadUsers(); }
     else msg('auMsg', 'Phoso: ' + (res.error || ''), false);
   }
+
+  // ---- OCR scanner (logged-in only) ----
+  let scanRows = [];
+
+  function buildScan() {
+    const b = document.createElement('button');
+    b.id = 'ocrBtn';
+    b.style.display = 'none';
+    b.innerHTML = '<span>\U0001F4F7</span><span>Bala</span>';
+    b.onclick = openScan;
+    document.body.appendChild(b);
+
+    const m = document.createElement('div');
+    m.id = 'ocrModal';
+    m.className = 'ow-overlay ow-hidden';
+    m.innerHTML = `
+      <div class="ow-card">
+        <span class="ow-x" id="ocrClose">&times;</span>
+        <h2>Bala Dinomoro (Scan numbers)</h2>
+        <p>Tsea senepe sa lenaneo la dinomoro, mme o tlhole pele o boloka. (Photograph the list, then check before saving.)</p>
+        <input type="file" id="ocrFile" accept="image/*" style="display:none">
+        <button class="ow-btn" id="ocrPick">\U0001F4F7 Tsea senepe (Take / choose photo)</button>
+        <div class="ow-msg" id="ocrMsg"></div>
+        <div id="ocrReview" style="display:none">
+          <div class="ow-meta" id="ocrSummary"></div>
+          <div id="ocrRows" class="ow-list"></div>
+          <button class="ow-btn" id="ocrApply">Tshwaya Teng (Mark present)</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+
+    document.getElementById('ocrClose').onclick = closeScan;
+    document.getElementById('ocrPick').onclick = function () { document.getElementById('ocrFile').click(); };
+    document.getElementById('ocrFile').addEventListener('change', onPhoto);
+    document.getElementById('ocrApply').onclick = applyScan;
+  }
+
+  async function openScan() {
+    document.getElementById('ocrModal').classList.remove('ow-hidden');
+    document.getElementById('ocrReview').style.display = 'none';
+    clearMsg('ocrMsg');
+    scanRows = [];
+    if (!herd.length) { try { await loadHerd(); } catch (e) {} }
+  }
+  function closeScan() { document.getElementById('ocrModal').classList.add('ow-hidden'); }
+
+  function fileToScaledBase64(file, maxDim, quality) {
+    return new Promise(function (resolve, reject) {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/jpeg', quality || 0.7).split('base64,')[1]);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('bad image')); };
+      img.src = url;
+    });
+  }
+
+  async function onPhoto(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    document.getElementById('ocrReview').style.display = 'none';
+    msg('ocrMsg', 'Go bala senepe... (Reading the photo, please wait.)', true);
+    let b64;
+    try { b64 = await fileToScaledBase64(file, 1600, 0.7); }
+    catch (err) { msg('ocrMsg', 'Ga go kgonege go bula senepe. (Could not open the photo.)', false); return; }
+    const res = await F.scanNumbers(b64, 'image/jpeg');
+    if (authFailed(res)) { closeScan(); return; }
+    if (!res.ok) { msg('ocrMsg', 'Phoso: ' + (res.error || ''), false); return; }
+    if (!res.numbers || !res.numbers.length) { msg('ocrMsg', 'Ga go na dinomoro tse di fumanweng. Leka senepe se sengwe. (No numbers found. Try another photo.)', false); return; }
+    clearMsg('ocrMsg');
+    scanRows = res.numbers.map(function (n) { return { value: String(n), present: true }; });
+    renderRows();
+    document.getElementById('ocrReview').style.display = '';
+  }
+
+  function rowStatus(v) {
+    const a = herdById[(v || '').trim()];
+    if (!a) return { cls: 'st-unknown', label: '?' };
+    if (a.is_inactive) return { cls: 'st-inactive', label: '\u2717' };
+    return { cls: 'st-ok', label: '\u2713' };
+  }
+  function updateSummary() {
+    const total = scanRows.length;
+    const matched = scanRows.filter(function (r) { const a = herdById[(r.value || '').trim()]; return a && !a.is_inactive; }).length;
+    document.getElementById('ocrSummary').textContent = 'E fumane ' + total + ', tse ' + matched + ' di tshwana le leruo. (Found ' + total + ', ' + matched + ' match the herd.)';
+  }
+  function renderRows() {
+    const box = document.getElementById('ocrRows');
+    box.innerHTML = scanRows.map(function (r, i) {
+      const st = rowStatus(r.value);
+      return '<div class="ow-uitem">'
+        + '<span style="display:flex;align-items:center;gap:8px;flex:1">'
+        + '<input type="checkbox" class="ocr-ck" data-i="' + i + '" ' + (r.present ? 'checked' : '') + ' style="width:20px;height:20px">'
+        + '<input type="text" class="ow-input ocr-val" data-i="' + i + '" value="' + esc(r.value) + '" style="padding:8px;font-size:15px">'
+        + '</span>'
+        + '<span class="ocr-st ' + st.cls + '">' + st.label + '</span>'
+        + '</div>';
+    }).join('');
+    box.querySelectorAll('.ocr-ck').forEach(function (ck) { ck.onchange = function () { scanRows[+ck.dataset.i].present = ck.checked; }; });
+    box.querySelectorAll('.ocr-val').forEach(function (inp) {
+      inp.oninput = function () {
+        scanRows[+inp.dataset.i].value = inp.value;
+        const st = rowStatus(inp.value);
+        const el = inp.closest('.ow-uitem').querySelector('.ocr-st');
+        el.className = 'ocr-st ' + st.cls; el.textContent = st.label;
+        updateSummary();
+      };
+    });
+    updateSummary();
+  }
+
+  // mark the matched animals present for the selected date, exactly like a manual tick
+  function applyPresent(ids) {
+    if (typeof attendance === 'undefined' || typeof selectedDate === 'undefined' || typeof currentGroup === 'undefined') return false;
+    const key = currentGroup + '_' + selectedDate;
+    if (!attendance[key]) attendance[key] = {};
+    ids.forEach(function (id) { attendance[key][id] = true; });
+    try { localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance)); } catch (e) {}
+    if (typeof loadGroup === 'function') loadGroup();
+    if (typeof updateStats === 'function') updateStats();
+    return true;
+  }
+
+  function applyScan() {
+    const matched = [], unmatched = [];
+    scanRows.forEach(function (r) {
+      const v = (r.value || '').trim();
+      if (!r.present || !v) return;
+      if (herdById[v] && !herdById[v].is_inactive) matched.push(v); else unmatched.push(v);
+    });
+    if (!matched.length) { msg('ocrMsg', 'Ga go na nomoro e e tshwanang le leruo. (Nothing matched the herd.)', false); return; }
+    if (!applyPresent(matched)) { msg('ocrMsg', 'Ga go kgonege go tshwaya mo skrineng se. (Could not mark on this screen.)', false); return; }
+    let t = matched.length + ' di tshwailwe teng. (' + matched.length + ' marked present.)';
+    if (unmatched.length) t += ' Tse di sa tshwanang: ' + unmatched.join(', ');
+    msg('ocrMsg', t, true);
+    document.getElementById('ocrReview').style.display = 'none';
+  }
+
+  // ---- per-animal editor (logged-in only): number, name, birth date, comment ----
+  function buildAnimEditor() {
+    const m = document.createElement('div');
+    m.id = 'animModal'; m.className = 'ow-overlay ow-hidden';
+    m.innerHTML = `
+      <div class="ow-card">
+        <span class="ow-x" id="animClose">&times;</span>
+        <h2>Edit animal</h2>
+        <div id="animMeta" class="ow-meta"></div>
+        <div class="ow-field"><label for="animNum">Number</label><input type="text" id="animNum" class="ow-input"></div>
+        <div class="ow-field"><label for="animName">Name</label><input type="text" id="animName" class="ow-input" placeholder="e.g. Rikus"></div>
+        <div class="ow-field"><label for="animDob">Birth date</label><input type="date" id="animDob" class="ow-input"></div>
+        <div class="ow-field"><label for="animCmt">Comment / note</label><textarea id="animCmt" class="ow-input" rows="2" placeholder="Optional note"></textarea></div>
+        <button class="ow-btn" id="animSave">Save</button>
+        <div class="ow-msg" id="animMsg"></div>
+        <div id="animCmtList" class="ow-comments"></div>
+      </div>`;
+    document.body.appendChild(m);
+    document.getElementById('animClose').onclick = function () { document.getElementById('animModal').classList.add('ow-hidden'); };
+    document.getElementById('animSave').onclick = saveAnimEdit;
+  }
+
+  async function farmEditAnimal(id) {
+    if (!F.isAdmin()) return;
+    if (!herd.length) { try { await loadHerd(); } catch (e) {} }
+    const a = herdById[id] || { id: id };
+    animEditingId = id;
+    document.getElementById('animModal').classList.remove('ow-hidden');
+    document.getElementById('animNum').value = a.id || id;
+    document.getElementById('animName').value = a.name || '';
+    document.getElementById('animDob').value = a.dateOfBirth || '';
+    document.getElementById('animCmt').value = '';
+    document.getElementById('animMeta').textContent = a.updatedBy ? ('Last edited by ' + a.updatedBy) : '';
+    clearMsg('animMsg');
+    document.getElementById('animCmtList').innerHTML = '';
+    loadAnimComments(id);
+  }
+
+  async function loadAnimComments(id) {
+    const res = await F.getComments(id);
+    if (authFailed(res)) return;
+    const list = document.getElementById('animCmtList');
+    if (!res.ok) { list.innerHTML = ''; return; }
+    if (!res.comments.length) { list.innerHTML = '<div class="ow-meta">No comments yet.</div>'; return; }
+    list.innerHTML = res.comments.map(function (c) {
+      const d = c.created_at ? new Date(c.created_at).toLocaleDateString('en-ZA') : '';
+      return '<div class="ow-comment">' + esc(c.comment) + '<div class="ow-cmeta">' + esc(c.author || '') + ' \u00b7 ' + esc(d) + '</div></div>';
+    }).join('');
+  }
+
+  async function saveAnimEdit() {
+    const oldId = animEditingId;
+    const newId = document.getElementById('animNum').value.trim();
+    const name = document.getElementById('animName').value.trim();
+    const dob = document.getElementById('animDob').value || null;
+    const comment = document.getElementById('animCmt').value.trim();
+    if (!newId) { msg('animMsg', 'Number cannot be empty.', false); return; }
+    const btn = document.getElementById('animSave'); btn.disabled = true; btn.textContent = 'Saving...';
+    const res = await F.editAnimal({ id: oldId, newId: newId, name: name, dateOfBirth: dob, comment: comment });
+    btn.disabled = false; btn.textContent = 'Save';
+    if (authFailed(res)) return;
+    if (!res.ok) { msg('animMsg', 'Error: ' + (res.error || ''), false); return; }
+    const finalId = res.id || newId;
+    if (finalId !== oldId) localRename(oldId, finalId);
+    else if (typeof window.loadGroup === 'function') window.loadGroup();
+    await loadHerd();
+    msg('animMsg', 'Saved.', true);
+    document.getElementById('animCmt').value = '';
+    animEditingId = finalId;
+    document.getElementById('animNum').value = finalId;
+    loadAnimComments(finalId);
+  }
+
+  // when a number changes, keep the local daily list + its ticks in step
+  function localRename(oldId, newId) {
+    try {
+      if (typeof LIVESTOCK_DATA !== 'undefined' && Array.isArray(LIVESTOCK_DATA)) {
+        const it = LIVESTOCK_DATA.find(function (l) { return l.id === oldId; });
+        if (it) it.id = newId;
+        try { localStorage.setItem('dikgomo_livestock', JSON.stringify(LIVESTOCK_DATA)); } catch (e) {}
+      }
+      if (typeof attendance !== 'undefined' && attendance) {
+        Object.keys(attendance).forEach(function (k) {
+          if (attendance[k] && Object.prototype.hasOwnProperty.call(attendance[k], oldId)) {
+            attendance[k][newId] = attendance[k][oldId];
+            delete attendance[k][oldId];
+          }
+        });
+        try { localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance)); } catch (e) {}
+      }
+      if (typeof window.loadGroup === 'function') window.loadGroup();
+      if (typeof window.updateStats === 'function') window.updateStats();
+    } catch (e) {}
+  }
+
+  window.farmEditAnimal = farmEditAnimal;
 
   function init() { injectStyle(); build(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

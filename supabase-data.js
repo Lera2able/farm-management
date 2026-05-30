@@ -9,6 +9,7 @@ window.FarmData = (function () {
   const SUPABASE_URL = 'https://vousucfboetqtppjywlg.supabase.co';
   const PUBLISHABLE_KEY = 'sb_publishable_mOLSxtGicEchOdWIdPL6BA_aaybClra';
   const FN_URL = SUPABASE_URL + '/functions/v1/farm-admin';
+  const FN_OCR_URL = SUPABASE_URL + '/functions/v1/farm-ocr';
   const SESSION_KEY = 'farm_session';
 
   // ---- lazy supabase-js client (for open herd reads only) ----
@@ -106,6 +107,7 @@ window.FarmData = (function () {
       fatherId: r.father_id,
       sex: r.sex,
       dateOfBirth: r.date_of_birth,
+      name: r.name,
       updatedBy: r.updated_by,
     };
   }
@@ -129,11 +131,37 @@ window.FarmData = (function () {
   function registerCalf({ id, motherId, fatherId, sex, dateOfBirth, group, comment } = {}) {
     return callAuthed('registerCalf', { id, motherId, fatherId, sex, dateOfBirth, group, comment });
   }
+  function editAnimal({ id, newId, name, dateOfBirth, comment } = {}) {
+    return callAuthed('editAnimal', { id, newId, name, dateOfBirth, comment });
+  }
   function addComment({ livestockId, comment } = {}) {
     return callAuthed('addComment', { livestockId, comment });
   }
   function getComments(livestockId) {
     return callAuthed('getComments', { livestockId });
+  }
+
+  // ---- OCR: read tag numbers from a photo (farm-ocr function) ----
+  async function scanNumbers(image, mediaType) {
+    const s = getSession();
+    if (!s) return { ok: false, error: 'Not logged in', code: 'AUTH' };
+    try {
+      const res = await fetch(FN_OCR_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': PUBLISHABLE_KEY,
+          'Authorization': 'Bearer ' + PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ token: s.token, image, mediaType }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data && data.code === 'AUTH') adminLogout();
+      if (!res.ok && !data.error) return { ok: false, error: 'HTTP ' + res.status };
+      return data;
+    } catch (e) {
+      return { ok: false, error: 'No connection. (Ga go na inthanete.)' };
+    }
   }
 
   // ---- account management (supersuper only; enforced server-side too) ----
@@ -144,7 +172,7 @@ window.FarmData = (function () {
   return {
     getClient, loadHerd, getStats, groupForId,
     adminLogin, adminLogout, isAdmin, getUser, isSuperSuper,
-    updateLineage, registerCalf, addComment, getComments,
+    updateLineage, registerCalf, editAnimal, addComment, getComments, scanNumbers,
     listUsers, createUser, deleteUser,
   };
 })();
