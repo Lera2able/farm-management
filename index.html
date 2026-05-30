@@ -3110,29 +3110,30 @@
                     });
                 }
                 
-                // Send email notification if enabled
-                let emailed = false;
-                if (EMAIL_CONFIG.enabled) {
-                    emailed = await sendEmailNotification({
-                        date: formatDate(selectedDate),
-                        shepherd: shepherdName,
-                        present: presentCount,
-                        absent: absentCount,
-                        total: activeLivestock.length,
-                        percentage: ((presentCount / activeLivestock.length) * 100).toFixed(1)
-                    });
-                }
-
+                // Email the summary via the server (Resend) - reliable, not EmailJS.
                 let emailNote = '';
-                if (EMAIL_CONFIG.enabled) {
-                    emailNote = emailed
-                        ? ' Email sent!'
-                        : ` <span style="color:#b91c1c;">Email NOT sent${lastEmailError ? ' (' + lastEmailError + ')' : ''}</span>`;
+                let emailFailed = false;
+                let emailReason = '';
+                if (!navigator.onLine) {
+                    emailFailed = true; emailReason = 'No internet at the time of saving.';
+                    emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>';
+                } else if (window.FarmData && window.FarmData.notifyAttendance) {
+                    try {
+                        const r = await window.FarmData.notifyAttendance({
+                            date: formatDate(selectedDate),
+                            shepherd: shepherdName,
+                            present: presentCount,
+                            absent: absentCount,
+                            total: activeLivestock.length,
+                            percentage: ((presentCount / activeLivestock.length) * 100).toFixed(1)
+                        });
+                        if (r && r.ok && r.sent) { emailNote = ' Email sent!'; }
+                        else { emailFailed = true; emailReason = (r && (r.reason || r.error)) || 'no response'; emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>'; }
+                    } catch (e) { emailFailed = true; emailReason = 'send error'; emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>'; }
                 }
-                const emailFailed = EMAIL_CONFIG.enabled && !emailed;
                 document.getElementById('successMessage').innerHTML = `
                     <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!${WEBHOOK_CONFIG.enabled ? ' Synced to Excel!' : ''}${emailNote}</div>
-                    ${emailFailed ? `<div class="alert-info" style="background:#fee2e2;color:#991b1b;border-color:#ef4444;margin-top:10px;text-align:left;">📧 Imeile ga e a romelwa. (Email not sent.)<br><small>${lastEmailError ? 'Reason: ' + lastEmailError : 'No reason returned'}</small></div>` : ''}
+                    ${emailFailed ? `<div class="alert-info" style="background:#fee2e2;color:#991b1b;border-color:#ef4444;margin-top:10px;text-align:left;">📧 Imeile ga e a romelwa. (Email not sent.)<br><small>${emailReason ? 'Reason: ' + emailReason : ''}</small></div>` : ''}
                 `;
 
                 saveBtn.disabled = false;

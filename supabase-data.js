@@ -10,6 +10,7 @@ window.FarmData = (function () {
   const PUBLISHABLE_KEY = 'sb_publishable_mOLSxtGicEchOdWIdPL6BA_aaybClra';
   const FN_URL = SUPABASE_URL + '/functions/v1/farm-admin';
   const FN_OCR_URL = SUPABASE_URL + '/functions/v1/farm-ocr';
+  const FN_NOTIFY_URL = SUPABASE_URL + '/functions/v1/farm-notify';
   const SESSION_KEY = 'farm_session';
 
   // ---- lazy supabase-js client (for open herd reads only) ----
@@ -171,12 +172,26 @@ window.FarmData = (function () {
 
   function logAudit(p) { return callFn('logAudit', p || {}); }
   function getAudit() { return callAuthed('getAudit', {}); }
+  async function notifyAttendance(p) {
+    try {
+      const res = await fetch(FN_NOTIFY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': PUBLISHABLE_KEY, 'Authorization': 'Bearer ' + PUBLISHABLE_KEY },
+        body: JSON.stringify(p || {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && !data.error) return { ok: false, error: 'HTTP ' + res.status };
+      return data;
+    } catch (e) {
+      return { ok: false, error: 'No connection. (Ga go na inthanete.)' };
+    }
+  }
 
   return {
     getClient, loadHerd, getStats, groupForId,
     adminLogin, adminLogout, isAdmin, getUser, isSuperSuper,
     updateLineage, registerCalf, editAnimal, addComment, getComments, scanNumbers,
     listUsers, createUser, deleteUser,
-    logAudit, getAudit,
+    logAudit, getAudit, notifyAttendance,
   };
 })();
