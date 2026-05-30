@@ -3534,11 +3534,11 @@
         }
 
         // ---- Download the Master workbook (history + a tab per recorded date) ----
-        async function ensureSheetJS() {
-            if (window.XLSX) return;
+        async function ensureExcelJS() {
+            if (window.ExcelJS) return;
             await new Promise(function (resolve, reject) {
                 const sc = document.createElement('script');
-                sc.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                sc.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
                 sc.onload = resolve; sc.onerror = function () { reject(new Error('lib')); };
                 document.head.appendChild(sc);
             });
@@ -3554,22 +3554,47 @@
             });
             return map;
         }
+        function statusFill(cell, text) {
+            const t = String(text == null ? '' : text).trim().toLowerCase();
+            let bg = null, fg = 'FF000000';
+            if (t === 'present' || t === 'teng') { bg = 'FF00B050'; fg = 'FFFFFFFF'; }
+            else if (t === 'absent' || t === 'seyo' || t === 'gone') { bg = 'FFFF0000'; fg = 'FFFFFFFF'; }
+            else if (t === 'sick' || t === 'bolwetse') { bg = 'FFFFC000'; fg = 'FF000000'; }
+            else if (t === 'dead' || t === 'sule' || t === 'died') { bg = 'FF808080'; fg = 'FFFFFFFF'; }
+            else return; // leave blanks / unknown uncoloured
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+            cell.font = { color: { argb: fg }, bold: true };
+            cell.alignment = { horizontal: 'center' };
+        }
+        function colourDateSheet(ws) {
+            const a1 = ws.getCell(1, 1).value, b1 = ws.getCell(1, 2).value;
+            if (String(a1 == null ? '' : a1).trim() !== 'Tag No' || String(b1 == null ? '' : b1).trim() !== 'Status') return;
+            ws.getCell(1, 1).font = { bold: true };
+            ws.getCell(1, 2).font = { bold: true };
+            const last = ws.rowCount;
+            for (let r = 2; r <= last; r++) {
+                statusFill(ws.getCell(r, 2), ws.getCell(r, 2).value);
+            }
+            ws.getColumn(1).width = 14;
+            ws.getColumn(2).width = 12;
+        }
         async function downloadMaster() {
-            try { await ensureSheetJS(); }
+            try { await ensureExcelJS(); }
             catch (e) { alert('Could not load the spreadsheet tool. Check your connection and try again.'); return; }
-            let wb;
+            const wb = new ExcelJS.Workbook();
+            let haveBase = false;
             try {
                 const resp = await fetch('master_stock.xlsx', { cache: 'no-store' });
-                if (!resp.ok) throw new Error('no base');
-                wb = XLSX.read(await resp.arrayBuffer(), { type: 'array' });
-            } catch (e) {
-                wb = XLSX.utils.book_new();
-                const roster = [['Tag No', 'Group', 'Status']];
-                LIVESTOCK_DATA.forEach(function (l) { roster.push([l.id, l.group, l.is_inactive ? 'Inactive' : 'Active']); });
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(roster), 'Dikgomo Master');
+                if (resp.ok) { await wb.xlsx.load(await resp.arrayBuffer()); haveBase = true; }
+            } catch (e) { haveBase = false; }
+            if (!haveBase) {
+                const ws = wb.addWorksheet('Dikgomo Master');
+                ws.addRow(['Tag No', 'Group', 'Status']);
+                ws.getRow(1).font = { bold: true };
+                LIVESTOCK_DATA.forEach(function (l) { ws.addRow([l.id, l.group, l.is_inactive ? 'Inactive' : 'Active']); });
             }
             const existing = {};
-            wb.SheetNames.forEach(function (n) { existing[n] = true; });
+            wb.eachSheet(function (ws) { existing[ws.name] = true; });
             const byDate = presentByDate();
             const activeIds = LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; }).map(function (l) { return l.id; });
             let added = 0;
@@ -3577,15 +3602,22 @@
                 const sheetName = ymdToDmy(ymd).slice(0, 31);
                 if (existing[sheetName]) return;
                 const present = byDate[ymd];
-                const rows = [['Tag No', 'Status']];
-                activeIds.forEach(function (id) { rows.push([id, present[id] ? 'Present' : 'Absent']); });
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), sheetName);
+                const ws = wb.addWorksheet(sheetName);
+                ws.addRow(['Tag No', 'Status']);
+                activeIds.forEach(function (id) { ws.addRow([id, present[id] ? 'Present' : 'Absent']); });
                 existing[sheetName] = true; added++;
             });
+            wb.eachSheet(function (ws) { try { colourDateSheet(ws); } catch (e) {} });
+            const buf = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const today = new Date().toISOString().split('T')[0];
-            XLSX.writeFile(wb, 'Dikgomo_Master_' + today + '.xlsx');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'Dikgomo_Master_' + today + '.xlsx';
+            document.body.appendChild(a); a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
             setTimeout(function () {
-                alert(added > 0 ? ('Master downloaded with ' + added + ' date tab(s) added.') : 'Master downloaded (no new dates to add).');
+                alert(added > 0 ? ('Master downloaded with ' + added + ' new date tab(s), colour coded.') : 'Master downloaded, colour coded.');
             }, 200);
         }
 
