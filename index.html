@@ -2624,6 +2624,29 @@
             loadGroup(); // Reload when date changes
         }
 
+        // Pull the herd from Supabase and merge in any animals not already in
+        // the local list (e.g. calves registered in the owner panel). It never
+        // removes or overwrites existing entries, so the daily app's own data
+        // is left intact. Runs only when online; offline it simply returns.
+        async function refreshHerdFromCloud() {
+            if (!window.FarmData || !navigator.onLine) return;
+            try {
+                const cloud = await window.FarmData.loadHerd();
+                if (!Array.isArray(cloud) || !cloud.length) return;
+                const have = new Set(LIVESTOCK_DATA.map(a => String(a.id)));
+                const additions = cloud
+                    .filter(a => !have.has(String(a.id)))
+                    .map(a => ({ id: a.id, group: a.group, is_inactive: !!a.is_inactive, status: a.status || '' }));
+                if (!additions.length) return;
+                LIVESTOCK_DATA = LIVESTOCK_DATA.concat(additions);
+                localStorage.setItem('dikgomo_livestock', JSON.stringify(LIVESTOCK_DATA));
+                console.log('Added ' + additions.length + ' animal(s) from Supabase');
+                if (!searchTerm) loadGroup(); // refresh view unless a search is in progress
+            } catch (e) {
+                console.log('Cloud herd refresh skipped:', e.message);
+            }
+        }
+
         // Initialize
         function init() {
             console.log('Loading LIVESTOCK_DATA...', LIVESTOCK_DATA ? LIVESTOCK_DATA.length + ' animals' : 'FAILED');
@@ -2676,6 +2699,10 @@
             
             // AUTO-LOAD ALL LIVESTOCK ON START
             loadGroup();
+
+            // Then pull the latest herd from Supabase so newly registered
+            // calves show up. Safe offline: it does nothing without a signal.
+            refreshHerdFromCloud();
         }
 
         // Switch tabs
@@ -3391,5 +3418,7 @@
                 .catch(err => console.log('SW registration failed'));
         }
     </script>
+    <script src="supabase-data.js"></script>
+    <script src="owner-ui.js"></script>
 </body>
 </html>
