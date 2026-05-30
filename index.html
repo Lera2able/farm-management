@@ -522,8 +522,14 @@
 
         <!-- Navigation Tabs -->
         <div class="nav-tabs">
-            <button class="nav-tab active" onclick="switchTab('register')">
-                📋 Livestock Register
+            <button class="nav-tab active" id="registerTabBtn" onclick="switchTab('register')">
+                📋 Leruo
+            </button>
+            <button class="nav-tab" id="sickTabBtn" onclick="switchTab('sick')">
+                🤒 Bolwetse
+            </button>
+            <button class="nav-tab" id="deadTabBtn" onclick="switchTab('dead')">
+                ⚰️ Sule
             </button>
             <button class="nav-tab" id="actionsTabBtn" onclick="switchTab('actions')" style="display:none">
                 ⚙️ Actions
@@ -640,6 +646,34 @@
                         <div class="action-desc">Full workbook, a tab per date</div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- SICK TAB (farmer, tick boxes only) -->
+        <div id="sickTab" class="tab-content">
+            <div style="padding: 20px;">
+                <h2 style="margin-bottom: 6px; color: #1f2937;">🤒 Bolwetse</h2>
+                <p style="color: #6b7280; margin-bottom: 16px;">Tshwaya dikgomo tse di lwalang.</p>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px;">
+                    <input type="text" id="sickSearch" placeholder="Batla nomoro..." oninput="renderSick()"
+                           style="flex:1; min-width:180px; padding:12px; border:2px solid #e5e7eb; border-radius:10px; font-size:16px;">
+                    <span id="sickCount" style="background:#fef3c7; color:#92400e; font-weight:700; padding:8px 14px; border-radius:20px;">0</span>
+                </div>
+                <div id="sickList" class="livestock-list" style="margin-bottom: 100px;"></div>
+            </div>
+        </div>
+
+        <!-- DEAD TAB (farmer, tick boxes only) -->
+        <div id="deadTab" class="tab-content">
+            <div style="padding: 20px;">
+                <h2 style="margin-bottom: 6px; color: #1f2937;">⚰️ Tse di Suleng</h2>
+                <p style="color: #6b7280; margin-bottom: 16px;">Tshwaya dikgomo tse di suleng.</p>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px;">
+                    <input type="text" id="deadSearch" placeholder="Batla nomoro..." oninput="renderDead()"
+                           style="flex:1; min-width:180px; padding:12px; border:2px solid #e5e7eb; border-radius:10px; font-size:16px;">
+                    <span id="deadCount" style="background:#fee2e2; color:#991b1b; font-weight:700; padding:8px 14px; border-radius:20px;">0</span>
+                </div>
+                <div id="deadList" class="livestock-list" style="margin-bottom: 100px;"></div>
             </div>
         </div>
     </div>
@@ -2709,6 +2743,7 @@
             // calves show up. Safe offline: it does nothing without a signal.
             refreshHerdFromCloud();
             updateActionsVisibility();
+            loadSickDead();
         }
 
         // Switch tabs
@@ -2722,17 +2757,79 @@
             }
         }
         function switchTab(tab) {
-            if (tab === "actions" && !(window.FarmData && window.FarmData.isAdmin())) tab = "register";
+            if (tab === 'actions' && !(window.FarmData && window.FarmData.isAdmin())) tab = 'register';
+            const map = {
+                register: ['registerTabBtn', 'registerTab'],
+                sick: ['sickTabBtn', 'sickTab'],
+                dead: ['deadTabBtn', 'deadTab'],
+                actions: ['actionsTabBtn', 'actionsTab']
+            };
+            const m = map[tab] || map.register;
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
-            if (tab === 'register') {
-                document.querySelectorAll('.nav-tab')[0].classList.add('active');
-                document.getElementById('registerTab').classList.add('active');
-            } else {
-                document.querySelectorAll('.nav-tab')[1].classList.add('active');
-                document.getElementById('actionsTab').classList.add('active');
+            const btn = document.getElementById(m[0]);
+            const content = document.getElementById(m[1]);
+            if (btn) btn.classList.add('active');
+            if (content) content.classList.add('active');
+            if (tab === 'sick') renderSick();
+            if (tab === 'dead') renderDead();
+        }
+
+        // ---- Farmer Sick / Dead ticking (tick boxes only) ----
+        let sickSet = {};
+        let deadSet = {};
+        function loadSickDead() {
+            try { sickSet = JSON.parse(localStorage.getItem('dikgomo_sick') || '{}') || {}; } catch (e) { sickSet = {}; }
+            try { deadSet = JSON.parse(localStorage.getItem('dikgomo_dead') || '{}') || {}; } catch (e) { deadSet = {}; }
+        }
+        function saveSickDead() {
+            localStorage.setItem('dikgomo_sick', JSON.stringify(sickSet));
+            localStorage.setItem('dikgomo_dead', JSON.stringify(deadSet));
+        }
+        function toggleSick(id) {
+            const cb = document.getElementById('sick_' + id);
+            if (cb && cb.checked) { sickSet[id] = true; } else { delete sickSet[id]; }
+            saveSickDead();
+            renderSick();
+        }
+        function toggleDead(id) {
+            const cb = document.getElementById('deadcheck_' + id);
+            if (cb && cb.checked) { deadSet[id] = true; } else { delete deadSet[id]; }
+            saveSickDead();
+            renderDead();
+        }
+        function renderTickList(containerId, searchId, setObj, idPrefix, toggleFn, label, tint) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const q = (document.getElementById(searchId) ? document.getElementById(searchId).value : '').trim().toLowerCase();
+            let list = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+            if (q) list = list.filter(l => String(l.id).toLowerCase().includes(q));
+            if (list.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🐄</div><p>Ga go na dikgomo.</p></div>';
+                return;
             }
+            container.innerHTML = list.map((item, index) => {
+                const on = !!setObj[item.id];
+                return `
+                    <div class="livestock-item" data-livestock-id="${item.id}" style="${on ? 'background:' + tint + ';' : ''}">
+                        <div class="livestock-info">
+                            <div class="livestock-number">${index + 1}</div>
+                            <div><div class="livestock-name">${item.id}</div></div>
+                        </div>
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="${idPrefix}${item.id}" ${on ? 'checked' : ''} onchange="${toggleFn}('${item.id}')">
+                            <label for="${idPrefix}${item.id}">${label}</label>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+        function renderSick() {
+            renderTickList('sickList', 'sickSearch', sickSet, 'sick_', 'toggleSick', 'Bolwetse', '#fff7ed');
+            const c = document.getElementById('sickCount'); if (c) c.textContent = Object.keys(sickSet).length;
+        }
+        function renderDead() {
+            renderTickList('deadList', 'deadSearch', deadSet, 'deadcheck_', 'toggleDead', 'Sule', '#fef2f2');
+            const c = document.getElementById('deadCount'); if (c) c.textContent = Object.keys(deadSet).length;
         }
 
         // Load livestock group
@@ -2966,8 +3063,9 @@
                 }
                 
                 // Send email notification if enabled
+                let emailed = false;
                 if (EMAIL_CONFIG.enabled) {
-                    await sendEmailNotification({
+                    emailed = await sendEmailNotification({
                         date: formatDate(selectedDate),
                         shepherd: shepherdName,
                         present: presentCount,
@@ -2976,9 +3074,15 @@
                         percentage: ((presentCount / activeLivestock.length) * 100).toFixed(1)
                     });
                 }
-                
+
+                let emailNote = '';
+                if (EMAIL_CONFIG.enabled) {
+                    emailNote = emailed
+                        ? ' Email sent!'
+                        : ` <span style="color:#b91c1c;">Email NOT sent${lastEmailError ? ' (' + lastEmailError + ')' : ''}</span>`;
+                }
                 document.getElementById('successMessage').innerHTML = `
-                    <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!${WEBHOOK_CONFIG.enabled ? ' Synced to Excel!' : ''}${EMAIL_CONFIG.enabled ? ' Email sent!' : ''}</div>
+                    <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!${WEBHOOK_CONFIG.enabled ? ' Synced to Excel!' : ''}${emailNote}</div>
                 `;
                 
                 saveBtn.disabled = false;
@@ -2997,7 +3101,9 @@
         }
         
         // Send email notification using EmailJS
+        let lastEmailError = '';
         async function sendEmailNotification(data) {
+            lastEmailError = '';
             if (!EMAIL_CONFIG.enabled || !EMAIL_CONFIG.serviceID) {
                 console.log('Email notifications not configured');
                 return false;
@@ -3024,6 +3130,9 @@
                 console.log('✓ Email sent successfully:', response);
                 return true;
             } catch (error) {
+                lastEmailError = (error && (error.status || error.text))
+                    ? ((error.status || '') + ' ' + (error.text || '')).trim()
+                    : ((error && error.message) || 'unknown error');
                 console.error('Email error:', error);
                 // Don't fail the save if email fails
                 return false;
