@@ -645,6 +645,11 @@
                         <div class="action-title">Download Master</div>
                         <div class="action-desc">Full workbook, a tab per date</div>
                     </div>
+                    <div class="action-card" onclick="showAuditTrail()">
+                        <div class="action-icon">🧾</div>
+                        <div class="action-title">Audit Trail</div>
+                        <div class="action-desc">All entries: comments, sick, dead, edits</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2809,12 +2814,14 @@
             if (cb && cb.checked) { sickSet[id] = true; } else { delete sickSet[id]; }
             saveSickDead();
             renderSick();
+            auditLog(cb && cb.checked ? 'sick_on' : 'sick_off', id);
         }
         function toggleDead(id) {
             const cb = document.getElementById('deadcheck_' + id);
             if (cb && cb.checked) { deadSet[id] = true; } else { delete deadSet[id]; }
             saveSickDead();
             renderDead();
+            auditLog(cb && cb.checked ? 'dead_on' : 'dead_off', id);
         }
         function renderTickList(containerId, searchId, setObj, idPrefix, toggleFn, label, tint, type) {
             const container = document.getElementById(containerId);
@@ -2857,10 +2864,20 @@
             const c = document.getElementById('deadCount'); if (c) c.textContent = Object.keys(deadSet).length;
         }
         // owner-only programmatic add/remove for the sick/dead lists
-        window.setSickState = function (id, on) { if (on) sickSet[id] = true; else delete sickSet[id]; saveSickDead(); renderSick(); };
-        window.setDeadState = function (id, on) { if (on) deadSet[id] = true; else delete deadSet[id]; saveSickDead(); renderDead(); };
+        window.setSickState = function (id, on) { if (on) sickSet[id] = true; else delete sickSet[id]; saveSickDead(); renderSick(); auditLog(on ? "sick_on" : "sick_off", id); };
+        window.setDeadState = function (id, on) { if (on) deadSet[id] = true; else delete deadSet[id]; saveSickDead(); renderDead(); auditLog(on ? "dead_on" : "dead_off", id); };
         window.isSick = function (id) { return !!sickSet[id]; };
         window.isDead = function (id) { return !!deadSet[id]; };
+        function auditLog(type, livestockId, detail) {
+            try {
+                if (!window.FarmData || !navigator.onLine) return;
+                const admin = window.FarmData.isAdmin && window.FarmData.isAdmin();
+                const u = (admin && window.FarmData.getUser) ? window.FarmData.getUser() : null;
+                const actor = (u && u.name) ? u.name : (shepherdName || "Modisa");
+                window.FarmData.logAudit({ type: type, livestockId: livestockId || null, detail: detail || null, actor: actor, source: admin ? "owner" : "farmer" });
+            } catch (e) {}
+        }
+        window.auditLog = auditLog;
 
         // Load livestock group
         function loadGroup() {
@@ -3068,6 +3085,7 @@
                 const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
                 const presentCount = allPresentToday.length;
                 const absentCount = activeLivestock.length - presentCount;
+                auditLog('attendance_saved', null, presentCount + '/' + activeLivestock.length + ' present, ' + formatDate(selectedDate));
                 
                 // Save to localStorage first
                 if (typeof db !== 'undefined') {

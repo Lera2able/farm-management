@@ -180,6 +180,7 @@
     buildScan();
     buildAnimEditor();
     buildSickDeadEditor();
+    buildAuditModal();
     refreshButton();
   }
 
@@ -533,6 +534,7 @@
       if (diA) { diA.value = chosenDate; if (typeof updateDateDisplay === 'function') updateDateDisplay(); }
     }
     if (!applyPresent(matched)) { msg('ocrMsg', 'Ga go kgonege go tshwaya mo skrineng se. (Could not mark on this screen.)', false); return; }
+    if (typeof window.auditLog === 'function') window.auditLog('scan_applied', null, matched.length + ' marked' + (chosenDate ? ', ' + chosenDate : ''));
     let t = matched.length + ' di tshwailwe teng. (' + matched.length + ' marked present.)';
     if (chosenDate) t += ' Letsatsi: ' + chosenDate + '.';
     if (unmatched.length) t += ' Tse di sa tshwanang: ' + unmatched.join(', ');
@@ -713,6 +715,62 @@
     sdLoadComments(id);
   }
   window.farmSickDeadEdit = farmSickDeadEdit;
+
+  // ---- Audit Trail (owner-only): everything that has been done ----
+  function buildAuditModal() {
+    const m = document.createElement('div');
+    m.id = 'auditModal'; m.className = 'ow-overlay ow-hidden';
+    m.innerHTML = `
+      <div class="ow-card" style="max-width:560px">
+        <span class="ow-x" id="auClose">&times;</span>
+        <h2>Audit Trail</h2>
+        <div class="ow-meta">Dintlha tsotlhe tse di dirilweng (Everything that has been recorded)</div>
+        <button class="ow-btn ow-btn-grey" id="auRefresh" style="margin:10px 0">Tsosolosa (Refresh)</button>
+        <div class="ow-msg" id="auMsg"></div>
+        <div id="auList" class="ow-comments"></div>
+      </div>`;
+    document.body.appendChild(m);
+    document.getElementById('auClose').onclick = function () { document.getElementById('auditModal').classList.add('ow-hidden'); };
+    document.getElementById('auRefresh').onclick = loadAudit;
+  }
+  function auditLabel(a) {
+    const map = {
+      sick_on: 'Tshwailwe bolwetse (Marked sick)',
+      sick_off: 'Tlositswe mo bolwetseng (Sick removed)',
+      dead_on: 'Tshwailwe sule (Marked dead)',
+      dead_off: 'Tlositswe mo suleng (Dead removed)',
+      comment: 'Kakanyo (Comment)',
+      attendance_saved: 'Palo e bolokilwe (Attendance saved)',
+      scan_applied: 'Senepe se badilwe (Scan applied)',
+      calf_added: 'Namane e tsentswe (Calf added)',
+      sold: 'Rekisitswe (Sold)',
+      died: 'Sule (Died)'
+    };
+    return map[a] || a;
+  }
+  async function loadAudit() {
+    const list = document.getElementById('auList');
+    list.innerHTML = '<div class="ow-meta">Go a laiswa... (Loading...)</div>';
+    clearMsg('auMsg');
+    const res = await F.getAudit();
+    if (authFailed(res)) return;
+    if (!res.ok) { list.innerHTML = ''; msg('auMsg', 'Phoso: ' + (res.error || ''), false); return; }
+    const ev = res.events || [];
+    if (!ev.length) { list.innerHTML = '<div class="ow-meta">Ga go na dintlha. (Nothing recorded yet.)</div>'; return; }
+    list.innerHTML = ev.map(function (e) {
+      const d = e.ts ? new Date(e.ts).toLocaleString('en-ZA') : '';
+      const who = esc(e.actor || '');
+      const animal = e.livestock_id ? (' \u00b7 ' + esc(e.livestock_id)) : '';
+      const det = e.detail ? ('<div class="ow-cmeta">' + esc(e.detail) + '</div>') : '';
+      return '<div class="ow-comment"><strong>' + esc(auditLabel(e.action)) + '</strong>' + animal + det + '<div class="ow-cmeta">' + who + ' \u00b7 ' + esc(d) + '</div></div>';
+    }).join('');
+  }
+  async function showAuditTrail() {
+    if (!F.isAdmin()) { showGate(); return; }
+    document.getElementById('auditModal').classList.remove('ow-hidden');
+    loadAudit();
+  }
+  window.showAuditTrail = showAuditTrail;
 
   window.farmEditAnimal = farmEditAnimal;
 

@@ -169,10 +169,14 @@ window.FarmData = (function () {
   function createUser({ name, password, role } = {}) { return callAuthed('createUser', { name, password, role }); }
   function deleteUser(name) { return callAuthed('deleteUser', { name }); }
 
+  function logAudit(p) { return callFn('logAudit', p || {}); }
+  function getAudit() { return callAuthed('getAudit', {}); }
+
   return {
     getClient, loadHerd, getStats, groupForId,
     adminLogin, adminLogout, isAdmin, getUser, isSuperSuper,
     updateLineage, registerCalf, editAnimal, addComment, getComments, scanNumbers,
     listUsers, createUser, deleteUser,
+    logAudit, getAudit,
   };
 })();
