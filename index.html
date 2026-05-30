@@ -635,7 +635,7 @@
                         <div class="action-title">View Inactive</div>
                         <div class="action-desc">See all sold/died livestock</div>
                     </div>
-                    <div class="action-card" onclick="downloadExcelReport()">
+                    <div class="action-card" onclick="showExcelDateModal()">
                         <div class="action-icon">📥</div>
                         <div class="action-title">Download Excel</div>
                         <div class="action-desc">Export attendance to Excel file</div>
@@ -738,6 +738,24 @@
                 <p style="color: #6b7280; font-size: 14px;">All Sold/Died Livestock</p>
             </div>
             <div id="inactiveList"></div>
+        </div>
+    </div>
+
+    <!-- Download Excel: choose date -->
+    <div id="excelModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeExcelModal()">&times;</button>
+                <h2>Download Excel</h2>
+                <p style="color: #6b7280; font-size: 14px;">Kgetha letlha (Choose which date to export)</p>
+            </div>
+            <div class="form-group">
+                <label>Letlha (Date)</label>
+                <select id="excelDateSelect"></select>
+            </div>
+            <button class="btn btn-primary btn-full" onclick="downloadExcelReport()">
+                \U0001F4E5 Download
+            </button>
         </div>
     </div>
 
@@ -3081,16 +3099,18 @@
                         ? ' Email sent!'
                         : ` <span style="color:#b91c1c;">Email NOT sent${lastEmailError ? ' (' + lastEmailError + ')' : ''}</span>`;
                 }
+                const emailFailed = EMAIL_CONFIG.enabled && !emailed;
                 document.getElementById('successMessage').innerHTML = `
                     <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!${WEBHOOK_CONFIG.enabled ? ' Synced to Excel!' : ''}${emailNote}</div>
+                    ${emailFailed ? `<div class="alert-info" style="background:#fee2e2;color:#991b1b;border-color:#ef4444;margin-top:10px;text-align:left;">📧 Imeile ga e a romelwa. (Email not sent.)<br><small>${lastEmailError ? 'Reason: ' + lastEmailError : 'No reason returned'}</small></div>` : ''}
                 `;
-                
+
                 saveBtn.disabled = false;
                 saveBtn.textContent = '💾 Boloka (Save Attendance)';
-                
-                setTimeout(() => {
-                    document.getElementById('successMessage').innerHTML = '';
-                }, 3000);
+
+                if (!emailFailed) {
+                    setTimeout(() => { document.getElementById('successMessage').innerHTML = ''; }, 3000);
+                }
                 
             } catch (error) {
                 console.error('Save error:', error);
@@ -3349,23 +3369,38 @@
 
 
         // Download Excel Report
+        function showExcelDateModal() {
+            const sel = document.getElementById('excelDateSelect');
+            const byDate = presentByDate();
+            const dates = Object.keys(byDate).sort().reverse();
+            let opts = '<option value="all">Matsatsi otlhe (All dates)</option>';
+            dates.forEach(function (ymd) { opts += '<option value="' + ymd + '">' + formatDate(ymd) + '</option>'; });
+            sel.innerHTML = opts;
+            document.getElementById('excelModal').classList.remove('hidden');
+        }
+        function closeExcelModal() {
+            document.getElementById('excelModal').classList.add('hidden');
+        }
         function downloadExcelReport() {
             const monthNames = ["January", "February", "March", "April", "May", "June",
                 "July", "August", "September", "October", "November", "December"];
             const now = new Date(selectedDate);
             const monthYear = monthNames[now.getMonth()] + now.getFullYear();
-            
+            if (document.getElementById('excelModal')) closeExcelModal();
+
             // Build attendance data
             const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
             const inactiveLivestock = LIVESTOCK_DATA.filter(l => l.is_inactive);
-            
-            // Get all unique dates from attendance records
-            const dates = new Set();
-            Object.keys(attendance).forEach(key => {
-                const dateMatch = key.match(/_(\d{4}-\d{2}-\d{2})/);
-                if (dateMatch) dates.add(dateMatch[1]);
-            });
-            const sortedDates = Array.from(dates).sort();
+
+            // Present-by-date, unioned across every group for each date
+            const byDate = presentByDate();
+
+            // Which date(s) to export, from the chooser
+            const sel = document.getElementById('excelDateSelect');
+            const choice = sel ? sel.value : 'all';
+            const allDates = Object.keys(byDate).sort();
+            const sortedDates = (choice && choice !== 'all') ? [choice] : allDates;
+            const fileLabel = (choice && choice !== 'all') ? choice : monthYear;
             
             // Create Excel HTML format with color coding
             let excelHTML = `
@@ -3408,8 +3443,7 @@
                 excelHTML += '<td>' + item.group + '</td>';
                 
                 sortedDates.forEach(date => {
-                    const key = `all_${date}`;
-                    const isPresent = attendance[key]?.[item.id] || false;
+                    const isPresent = (byDate[date] && byDate[date][item.id]) || false;
                     const cellClass = isPresent ? 'present' : 'absent';
                     const cellText = isPresent ? '✓ Present' : '✗ Absent';
                     
@@ -3427,8 +3461,7 @@
             excelHTML += '<tr class="header"><th>Date</th><th>Present</th><th>Absent</th><th>Total</th><th>%</th></tr>';
             
             sortedDates.forEach(date => {
-                const key = `all_${date}`;
-                const presentCount = Object.values(attendance[key] || {}).filter(v => v === true).length;
+                const presentCount = byDate[date] ? Object.keys(byDate[date]).length : 0;
                 const absentCount = activeLivestock.length - presentCount;
                 const percentage = ((presentCount / activeLivestock.length) * 100).toFixed(1);
                 
@@ -3481,13 +3514,13 @@
             const url = URL.createObjectURL(blob);
             
             link.setAttribute("href", url);
-            link.setAttribute("download", `Dikgomo_Attendance_${monthYear}.xls`);
+            link.setAttribute("download", `Dikgomo_Attendance_${fileLabel}.xls`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             
-            alert(`✓ Downloaded!\n\nFile: Dikgomo_Attendance_${monthYear}.xls\n\n✅ Green = Present\n❌ Red = Absent\n\nIncludes 2 sheets:\n1. Attendance (color-coded)\n2. Inactive Livestock\n\nYou can now upload to OneDrive!`);
+            alert(`✓ Downloaded!\n\nFile: Dikgomo_Attendance_${fileLabel}.xls\n\n✅ Green = Present\n❌ Red = Absent\n\nIncludes 2 sheets:\n1. Attendance (color-coded)\n2. Inactive Livestock\n\nYou can now upload to OneDrive!`);
         }
 
         // Edit livestock number

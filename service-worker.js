@@ -1,95 +1,56 @@
-// Service Worker for Offline Support
-const CACHE_NAME = 'livestock-attendance-v1';
-const urlsToCache = [
-    '/',
-    '/index.html',
-    '/styles.css',
-    '/app.js',
-    '/db.js',
-    '/sync.js',
-    '/livestock-data.js',
-    '/manifest.json'
-];
+// Service Worker - network-first so new commits reach devices as soon as
+// they are online, while still working offline from the last good copy.
+const CACHE_NAME = 'dikgomo-v3';
+const CORE = ['./', './index.html', './manifest.json', './supabase-data.js', './owner-ui.js'];
 
-// Install event - cache resources
 self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('Opened cache');
-                return cache.addAll(urlsToCache);
-            })
-    );
     self.skipWaiting();
-});
-
-// Fetch event - serve from cache, fallback to network
-self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                // Cache hit - return response
-                if (response) {
-                    return response;
-                }
-
-                // Clone the request
-                const fetchRequest = event.request.clone();
-
-                return fetch(fetchRequest).then((response) => {
-                    // Check if valid response
-                    if (!response || response.status !== 200 || response.type !== 'basic') {
-                        return response;
-                    }
-
-                    // Clone the response
-                    const responseToCache = response.clone();
-
-                    // Cache the new response
-                    caches.open(CACHE_NAME)
-                        .then((cache) => {
-                            cache.put(event.request, responseToCache);
-                        });
-
-                    return response;
-                });
-            }).catch(() => {
-                // Return offline page if available
-                return caches.match('/index.html');
-            })
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) =>
+            // add each file on its own so one missing file can't fail the install
+            Promise.all(CORE.map((u) => cache.add(u).catch(() => null)))
+        )
     );
 });
 
-// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('Deleting old cache:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
+        caches.keys()
+            .then((names) => Promise.all(names.map((n) => (n !== CACHE_NAME ? caches.delete(n) : null))))
+            .then(() => self.clients.claim())
     );
-    return self.clients.claim();
 });
 
-// Background sync
+self.addEventListener('fetch', (event) => {
+    const req = event.request;
+    if (req.method !== 'GET') return;
+
+    const url = new URL(req.url);
+    // Let cross-origin requests (CDNs, Supabase, EmailJS) go straight to the network.
+    if (url.origin !== self.location.origin) return;
+
+    // Network-first: always try to fetch the freshest file; fall back to cache offline.
+    event.respondWith(
+        fetch(req)
+            .then((res) => {
+                if (res && res.status === 200 && res.type === 'basic') {
+                    const copy = res.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+                }
+                return res;
+            })
+            .catch(() =>
+                caches.match(req).then((hit) => hit || caches.match('./index.html'))
+            )
+    );
+});
+
+// Background sync hook (used by the app to trigger a sync when back online)
 self.addEventListener('sync', (event) => {
     if (event.tag === 'sync-attendance') {
-        event.waitUntil(syncData());
+        event.waitUntil((async () => {
+            const clients = await self.clients.matchAll();
+            clients.forEach((client) => client.postMessage({ type: 'SYNC_REQUEST' }));
+        })());
     }
 });
-
-async function syncData() {
-    // This will trigger the sync in the main app
-    const clients = await self.clients.matchAll();
-    clients.forEach(client => {
-        client.postMessage({
-            type: 'SYNC_REQUEST'
-        });
-    });
-}
