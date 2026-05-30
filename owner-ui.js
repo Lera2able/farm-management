@@ -373,6 +373,7 @@
 
   // ---- OCR scanner (logged-in only) ----
   let scanRows = [];
+  let scanDate = '';
 
   function buildScan() {
     const b = document.createElement('button');
@@ -395,6 +396,11 @@
         <div class="ow-msg" id="ocrMsg"></div>
         <div id="ocrReview" style="display:none">
           <div class="ow-meta" id="ocrSummary"></div>
+          <div class="ow-field" style="margin:10px 0">
+            <label for="ocrDate">Letsatsi la senepe (Date on the sheet)</label>
+            <input type="date" id="ocrDate" class="ow-input">
+            <div class="ow-msg" id="ocrDateNote"></div>
+          </div>
           <div id="ocrRows" class="ow-list"></div>
           <button class="ow-btn" id="ocrApply">Tshwaya Teng (Mark present)</button>
         </div>
@@ -449,6 +455,14 @@
     if (!res.numbers || !res.numbers.length) { msg('ocrMsg', 'Ga go na dinomoro tse di fumanweng. Leka senepe se sengwe. (No numbers found. Try another photo.)', false); return; }
     clearMsg('ocrMsg');
     scanRows = res.numbers.map(function (n) { return { value: String(n), present: true }; });
+    scanDate = (res.date && /^\d{4}-\d{2}-\d{2}$/.test(res.date)) ? res.date : '';
+    var di0 = document.getElementById('dateInput');
+    var odIn = document.getElementById('ocrDate');
+    if (odIn) odIn.value = scanDate || (di0 ? di0.value : '');
+    var dnote = document.getElementById('ocrDateNote');
+    if (dnote) dnote.textContent = scanDate
+      ? 'Letsatsi le badilwe senepeng. (Date read from the sheet.)'
+      : 'Ga go letsatsi le le fumanweng, netefatsa le le fa godimo. (No date found, confirm above.)';
     renderRows();
     document.getElementById('ocrReview').style.display = '';
   }
@@ -509,8 +523,15 @@
       if (herdById[v] && !herdById[v].is_inactive) matched.push(v); else unmatched.push(v);
     });
     if (!matched.length) { msg('ocrMsg', 'Ga go na nomoro e e tshwanang le leruo. (Nothing matched the herd.)', false); return; }
+    var odA = document.getElementById('ocrDate');
+    var chosenDate = odA ? odA.value : '';
+    if (chosenDate && /^\d{4}-\d{2}-\d{2}$/.test(chosenDate)) {
+      var diA = document.getElementById('dateInput');
+      if (diA) { diA.value = chosenDate; if (typeof updateDateDisplay === 'function') updateDateDisplay(); }
+    }
     if (!applyPresent(matched)) { msg('ocrMsg', 'Ga go kgonege go tshwaya mo skrineng se. (Could not mark on this screen.)', false); return; }
     let t = matched.length + ' di tshwailwe teng. (' + matched.length + ' marked present.)';
+    if (chosenDate) t += ' Letsatsi: ' + chosenDate + '.';
     if (unmatched.length) t += ' Tse di sa tshwanang: ' + unmatched.join(', ');
     msg('ocrMsg', t, true);
     document.getElementById('ocrReview').style.display = 'none';
