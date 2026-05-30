@@ -1,10 +1,10 @@
 // Owner panel (Setswana/English) — self-contained styling
 //
-// Adds a small "Mong" (Owner) button. Tapping it asks for the owner password
-// (checked by Supabase via FarmData). Once unlocked, the owner can edit an
-// animal's lineage and register a new calf. Workers never need any of this.
+// Floating "Mong" button. Logged-out farmers only ever see tick + save on the
+// main screen. Owners log in (3-day session) and get lineage editing, calf
+// registration and comments. The supersuper also gets account management.
 //
-// Requires supabase-data.js (window.FarmData) to be loaded first.
+// Requires supabase-data.js (window.FarmData) loaded first.
 
 (function () {
   if (!window.FarmData) {
@@ -12,15 +12,23 @@
     return;
   }
 
+  const F = window.FarmData;
   let herd = [];
   let herdById = {};
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
 
   function injectStyle() {
     const css = `
       #ownerBtn{position:fixed;left:12px;bottom:16px;z-index:1500;background:#6b7280;color:#fff;
         border:none;border-radius:24px;padding:10px 16px;font-size:14px;font-weight:600;
         box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;display:flex;align-items:center;gap:6px;
-        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:60vw}
+      #ownerBtn span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       #ownerBtn:active{transform:scale(.97)}
       .ow-overlay{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.6);display:flex;
         align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;
@@ -37,19 +45,31 @@
       .ow-field{margin-bottom:12px}
       .ow-field label{display:block;font-weight:600;font-size:14px;margin-bottom:5px;color:#374151}
       .ow-input{width:100%;padding:12px;font-size:16px;border:1px solid #d1d5db;border-radius:8px;
-        outline:none;background:#fff;color:#1f2937}
+        outline:none;background:#fff;color:#1f2937;font-family:inherit}
       .ow-input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+      textarea.ow-input{resize:vertical}
       .ow-btn{width:100%;padding:13px;font-size:16px;font-weight:600;border:none;border-radius:8px;
-        cursor:pointer;background:#3b82f6;color:#fff}
+        cursor:pointer;background:#3b82f6;color:#fff;margin-top:4px}
       .ow-btn:active{background:#2563eb}
       .ow-btn[disabled]{opacity:.6}
-      .ow-btn-grey{background:#6b7280;padding:8px 12px;font-size:13px;width:auto}
+      .ow-btn-grey{background:#6b7280}
       .ow-btn-grey:active{background:#4b5563}
       .ow-row{display:flex;gap:10px}
       .ow-row .ow-btn{flex:1}
+      .ow-meta{font-size:12px;color:#6b7280;margin:-4px 0 12px}
       .ow-msg{margin-top:10px;padding:10px;border-radius:8px;font-size:14px;display:none}
       .ow-msg.ok{display:block;background:#d1fae5;color:#065f46}
       .ow-msg.err{display:block;background:#fee2e2;color:#b91c1c}
+      .ow-comments{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+      .ow-comment{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:14px}
+      .ow-comment .ow-cmeta{font-size:11px;color:#6b7280;margin-top:4px}
+      .ow-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+      .ow-uitem{display:flex;align-items:center;justify-content:space-between;background:#f9fafb;
+        border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px}
+      .ow-uitem .ow-uname{font-weight:600}
+      .ow-pill{font-size:11px;padding:2px 8px;border-radius:10px;background:#e5e7eb;color:#374151;margin-left:8px}
+      .ow-pill.super2{background:#fde68a;color:#92400e}
+      .ow-del{background:#ef4444;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer}
     `;
     const el = document.createElement('style');
     el.textContent = css;
@@ -59,7 +79,7 @@
   function build() {
     const btn = document.createElement('button');
     btn.id = 'ownerBtn';
-    btn.innerHTML = '<span>👤</span><span>Mong</span>';
+    btn.innerHTML = '<span>👤</span><span id="ownerBtnLabel">Mong</span>';
     btn.onclick = open;
     document.body.appendChild(btn);
 
@@ -72,20 +92,18 @@
 
         <div id="owGate">
           <h2>Mong (Owner)</h2>
-          <p>Tsenya password go bula. (Enter the password to unlock.)</p>
-          <div class="ow-field">
-            <input type="password" id="owPass" class="ow-input" placeholder="Password" autocomplete="off">
-          </div>
+          <p>Tsenya password go bula. (Enter your password to unlock.)</p>
+          <div class="ow-field"><input type="password" id="owPass" class="ow-input" placeholder="Password" autocomplete="off"></div>
           <div class="ow-row">
-            <button class="ow-btn ow-btn-grey" id="owCancel" style="width:auto;flex:1">Tswala</button>
+            <button class="ow-btn ow-btn-grey" id="owCancel">Tswala</button>
             <button class="ow-btn" id="owUnlock">Bula</button>
           </div>
           <div class="ow-msg" id="owGateMsg"></div>
         </div>
 
         <div id="owPanel" style="display:none">
-          <span style="float:right"><button class="ow-btn ow-btn-grey" id="owLock">🔒 Tswala</button></span>
-          <h2>Mong (Owner)</h2>
+          <span style="float:right"><button class="ow-btn ow-btn-grey" id="owLock" style="width:auto">🔒 Tswala</button></span>
+          <h2 id="owHello">Mong</h2>
 
           <div class="ow-section">
             <h3>Tlhabolola Lotso (Edit lineage)</h3>
@@ -93,58 +111,48 @@
               <label for="linPick">Kgetha kgomo (Choose animal)</label>
               <input list="owHerd" id="linPick" class="ow-input" placeholder="Nomoro ya kgomo">
             </div>
-            <div class="ow-field">
-              <label for="linMma">Mma (Mother)</label>
-              <input list="owHerd" id="linMma" class="ow-input" placeholder="Nomoro ya ga mmagwe">
+            <div id="linMeta" class="ow-meta"></div>
+            <div class="ow-field"><label for="linMma">Mma (Mother)</label><input list="owHerd" id="linMma" class="ow-input" placeholder="Nomoro ya ga mmagwe"></div>
+            <div class="ow-field"><label for="linRre">Rre (Father)</label><input list="owHerd" id="linRre" class="ow-input" placeholder="Nomoro ya ga rragwe"></div>
+            <div class="ow-field"><label for="linSex">Bong (Sex)</label>
+              <select id="linSex" class="ow-input"><option value="">--</option><option value="M">Poo (M)</option><option value="F">Tshegadi (F)</option></select>
             </div>
-            <div class="ow-field">
-              <label for="linRre">Rre (Father)</label>
-              <input list="owHerd" id="linRre" class="ow-input" placeholder="Nomoro ya ga rragwe">
-            </div>
-            <div class="ow-field">
-              <label for="linSex">Bong (Sex)</label>
-              <select id="linSex" class="ow-input">
-                <option value="">--</option>
-                <option value="M">Poo (M)</option>
-                <option value="F">Tshegadi (F)</option>
-              </select>
-            </div>
-            <div class="ow-field">
-              <label for="linDob">Letlha la matsalo (Date of birth)</label>
-              <input type="date" id="linDob" class="ow-input">
-            </div>
+            <div class="ow-field"><label for="linDob">Letlha la matsalo (Date of birth)</label><input type="date" id="linDob" class="ow-input"></div>
             <button class="ow-btn" id="linSave">Boloka Lotso</button>
             <div class="ow-msg" id="linMsg"></div>
+
+            <div class="ow-field" style="margin-top:16px">
+              <label for="cmtBox">Dikakanyo (Comment / note)</label>
+              <textarea id="cmtBox" class="ow-input" rows="2" placeholder="Kwala kakanyo ka kgomo e..."></textarea>
+            </div>
+            <button class="ow-btn ow-btn-grey" id="cmtAdd">Engadisa Kakanyo (Add comment)</button>
+            <div class="ow-msg" id="cmtMsg"></div>
+            <div id="cmtList" class="ow-comments"></div>
           </div>
 
           <div class="ow-section">
             <h3>Kwadisa Namane e Ntšhwa (Register new calf)</h3>
-            <div class="ow-field">
-              <label for="calfId">Nomoro (Tag number)</label>
-              <input type="text" id="calfId" class="ow-input" placeholder="P.f. 11272">
+            <div class="ow-field"><label for="calfId">Nomoro (Tag number)</label><input type="text" id="calfId" class="ow-input" placeholder="P.f. 11272"></div>
+            <div class="ow-field"><label for="calfMma">Mma (Mother)</label><input list="owHerd" id="calfMma" class="ow-input" placeholder="Nomoro ya ga mmagwe"></div>
+            <div class="ow-field"><label for="calfRre">Rre (Father)</label><input list="owHerd" id="calfRre" class="ow-input" placeholder="Nomoro ya ga rragwe"></div>
+            <div class="ow-field"><label for="calfSex">Bong (Sex)</label>
+              <select id="calfSex" class="ow-input"><option value="">--</option><option value="M">Poo (M)</option><option value="F">Tshegadi (F)</option></select>
             </div>
-            <div class="ow-field">
-              <label for="calfMma">Mma (Mother)</label>
-              <input list="owHerd" id="calfMma" class="ow-input" placeholder="Nomoro ya ga mmagwe">
-            </div>
-            <div class="ow-field">
-              <label for="calfRre">Rre (Father)</label>
-              <input list="owHerd" id="calfRre" class="ow-input" placeholder="Nomoro ya ga rragwe">
-            </div>
-            <div class="ow-field">
-              <label for="calfSex">Bong (Sex)</label>
-              <select id="calfSex" class="ow-input">
-                <option value="">--</option>
-                <option value="M">Poo (M)</option>
-                <option value="F">Tshegadi (F)</option>
-              </select>
-            </div>
-            <div class="ow-field">
-              <label for="calfDob">Letlha la matsalo (Date of birth)</label>
-              <input type="date" id="calfDob" class="ow-input">
-            </div>
+            <div class="ow-field"><label for="calfDob">Letlha la matsalo (Date of birth)</label><input type="date" id="calfDob" class="ow-input"></div>
             <button class="ow-btn" id="calfSave">Kwadisa Namane</button>
             <div class="ow-msg" id="calfMsg"></div>
+          </div>
+
+          <div class="ow-section" id="owAccounts" style="display:none">
+            <h3>Di-akhaonto (Accounts)</h3>
+            <div id="owUserList" class="ow-list"></div>
+            <div class="ow-field"><label for="auName">Leina (Name)</label><input id="auName" class="ow-input" placeholder="P.f. Thabo"></div>
+            <div class="ow-field"><label for="auPass">Password</label><input id="auPass" class="ow-input" type="text" placeholder="Password e ntšhwa"></div>
+            <div class="ow-field"><label for="auRole">Karolo (Role)</label>
+              <select id="auRole" class="ow-input"><option value="super">Super (edit only)</option><option value="supersuper">Supersuper (manage accounts)</option></select>
+            </div>
+            <button class="ow-btn" id="auCreate">Tlhama akhaonto (Create account)</button>
+            <div class="ow-msg" id="auMsg"></div>
           </div>
         </div>
 
@@ -157,9 +165,18 @@
     document.getElementById('owUnlock').onclick = unlock;
     document.getElementById('owPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') unlock(); });
     document.getElementById('owLock').onclick = lock;
-    document.getElementById('linPick').addEventListener('change', fillLineage);
+    document.getElementById('linPick').addEventListener('change', onPickAnimal);
     document.getElementById('linSave').onclick = saveLineage;
+    document.getElementById('cmtAdd').onclick = addComment;
     document.getElementById('calfSave').onclick = saveCalf;
+    document.getElementById('auCreate').onclick = createUser;
+
+    refreshButton();
+  }
+
+  function refreshButton() {
+    const u = F.getUser();
+    document.getElementById('ownerBtnLabel').textContent = u ? u.name : 'Mong';
   }
 
   function msg(id, text, ok) {
@@ -167,19 +184,20 @@
     el.textContent = text;
     el.className = 'ow-msg ' + (ok ? 'ok' : 'err');
   }
-  function clearMsg(id) {
-    const el = document.getElementById(id);
-    el.textContent = '';
-    el.className = 'ow-msg';
+  function clearMsg(id) { const el = document.getElementById(id); el.textContent = ''; el.className = 'ow-msg'; }
+
+  // if a call comes back with an expired session, drop to the login screen
+  function authFailed(res) {
+    if (res && res.code === 'AUTH') { refreshButton(); showGate(); msg('owGateMsg', 'Nako e fedile, tsena gape. (Session ended, log in again.)', false); return true; }
+    return false;
   }
 
   function open() {
     document.getElementById('ownerModal').classList.remove('ow-hidden');
-    if (window.FarmData.isAdmin()) showPanel(); else showGate();
+    if (F.isAdmin()) showPanel(); else showGate();
   }
-  function close() {
-    document.getElementById('ownerModal').classList.add('ow-hidden');
-  }
+  function close() { document.getElementById('ownerModal').classList.add('ow-hidden'); }
+
   function showGate() {
     document.getElementById('owGate').style.display = '';
     document.getElementById('owPanel').style.display = 'none';
@@ -189,42 +207,59 @@
   function showPanel() {
     document.getElementById('owGate').style.display = 'none';
     document.getElementById('owPanel').style.display = '';
+    const u = F.getUser();
+    document.getElementById('owHello').textContent = u ? ('Dumela, ' + u.name) : 'Mong';
+    document.getElementById('owAccounts').style.display = F.isSuperSuper() ? '' : 'none';
+    refreshButton();
     loadHerd();
+    if (F.isSuperSuper()) loadUsers();
   }
 
   async function unlock() {
     const pass = document.getElementById('owPass').value;
     if (!pass) return;
     msg('owGateMsg', 'Go a sekasekwa...', true);
-    const res = await window.FarmData.adminLogin(pass);
+    const res = await F.adminLogin(pass);
     if (res.ok) showPanel();
-    else msg('owGateMsg', 'Password e fosagetse. (Wrong password.)', false);
+    else msg('owGateMsg', (res.error === 'Wrong password' ? 'Password e fosagetse. (Wrong password.)' : res.error), false);
   }
 
-  function lock() {
-    window.FarmData.adminLogout();
-    showGate();
-  }
+  function lock() { F.adminLogout(); refreshButton(); showGate(); }
 
   async function loadHerd() {
     try {
-      herd = await window.FarmData.loadHerd();
+      herd = await F.loadHerd();
       herdById = {};
-      document.getElementById('owHerd').innerHTML = herd.map((a) => `<option value="${a.id}">`).join('');
+      document.getElementById('owHerd').innerHTML = herd.map((a) => `<option value="${esc(a.id)}">`).join('');
       herd.forEach((a) => { herdById[a.id] = a; });
     } catch (e) {
       msg('linMsg', 'Ga go kgonege go laisa dikgomo. Netefatsa inthanete. (Could not load. Check connection.)', false);
     }
   }
 
-  function fillLineage() {
+  async function onPickAnimal() {
     const id = document.getElementById('linPick').value.trim();
     const a = herdById[id];
-    clearMsg('linMsg');
+    clearMsg('linMsg'); clearMsg('cmtMsg');
     document.getElementById('linMma').value = a && a.motherId ? a.motherId : '';
     document.getElementById('linRre').value = a && a.fatherId ? a.fatherId : '';
     document.getElementById('linSex').value = a && a.sex ? a.sex : '';
     document.getElementById('linDob').value = a && a.dateOfBirth ? a.dateOfBirth : '';
+    document.getElementById('linMeta').textContent = a && a.updatedBy ? ('Tlhabolotswe ke ' + a.updatedBy + ' (last edited by ' + a.updatedBy + ')') : '';
+    document.getElementById('cmtList').innerHTML = '';
+    if (a) loadComments(id);
+  }
+
+  async function loadComments(id) {
+    const res = await F.getComments(id);
+    if (authFailed(res)) return;
+    const list = document.getElementById('cmtList');
+    if (!res.ok) { list.innerHTML = ''; return; }
+    if (!res.comments.length) { list.innerHTML = '<div class="ow-meta">Ga go na dikakanyo. (No comments yet.)</div>'; return; }
+    list.innerHTML = res.comments.map((c) => {
+      const d = c.created_at ? new Date(c.created_at).toLocaleDateString('en-ZA') : '';
+      return `<div class="ow-comment">${esc(c.comment)}<div class="ow-cmeta">${esc(c.author || '')} · ${esc(d)}</div></div>`;
+    }).join('');
   }
 
   async function saveLineage() {
@@ -233,15 +268,32 @@
     if (!herdById[id]) { msg('linMsg', 'Kgomo ga e teng. (No such animal.)', false); return; }
     const btn = document.getElementById('linSave');
     btn.disabled = true; btn.textContent = 'Go boloka...';
-    const res = await window.FarmData.updateLineage(id, {
+    const res = await F.updateLineage(id, {
       motherId: document.getElementById('linMma').value.trim(),
       fatherId: document.getElementById('linRre').value.trim(),
       sex: document.getElementById('linSex').value,
       dateOfBirth: document.getElementById('linDob').value || null,
     });
     btn.disabled = false; btn.textContent = 'Boloka Lotso';
+    if (authFailed(res)) return;
     if (res.ok) { msg('linMsg', 'Bolokilwe! ✓ (Saved.)', true); await loadHerd(); }
     else msg('linMsg', 'Phoso: ' + (res.error || ''), false);
+  }
+
+  async function addComment() {
+    const id = document.getElementById('linPick').value.trim();
+    const text = document.getElementById('cmtBox').value.trim();
+    if (!text) { msg('cmtMsg', 'Kwala kakanyo pele. (Write something first.)', false); return; }
+    const btn = document.getElementById('cmtAdd');
+    btn.disabled = true;
+    const res = await F.addComment({ livestockId: id || null, comment: text });
+    btn.disabled = false;
+    if (authFailed(res)) return;
+    if (res.ok) {
+      document.getElementById('cmtBox').value = '';
+      msg('cmtMsg', 'Engaditswe! ✓ (Added.)', true);
+      if (id) loadComments(id);
+    } else msg('cmtMsg', 'Phoso: ' + (res.error || ''), false);
   }
 
   async function saveCalf() {
@@ -249,7 +301,7 @@
     if (!id) { msg('calfMsg', 'Tsenya nomoro. (Enter a tag number.)', false); return; }
     const btn = document.getElementById('calfSave');
     btn.disabled = true; btn.textContent = 'Go kwadisa...';
-    const res = await window.FarmData.registerCalf({
+    const res = await F.registerCalf({
       id,
       motherId: document.getElementById('calfMma').value.trim(),
       fatherId: document.getElementById('calfRre').value.trim(),
@@ -257,14 +309,54 @@
       dateOfBirth: document.getElementById('calfDob').value || null,
     });
     btn.disabled = false; btn.textContent = 'Kwadisa Namane';
+    if (authFailed(res)) return;
     if (res.ok) {
       msg('calfMsg', 'Namane e kwadisitswe! ✓ (Calf registered.)', true);
       ['calfId', 'calfMma', 'calfRre', 'calfDob'].forEach((i) => { document.getElementById(i).value = ''; });
       document.getElementById('calfSex').value = '';
       await loadHerd();
-    } else {
-      msg('calfMsg', 'Phoso: ' + (res.error || ''), false);
-    }
+    } else msg('calfMsg', 'Phoso: ' + (res.error || ''), false);
+  }
+
+  // ---- accounts (supersuper) ----
+  async function loadUsers() {
+    const res = await F.listUsers();
+    if (authFailed(res)) return;
+    const box = document.getElementById('owUserList');
+    if (!res.ok) { box.innerHTML = '<div class="ow-meta">' + esc(res.error || '') + '</div>'; return; }
+    const me = (F.getUser() || {}).name;
+    box.innerHTML = res.users.map((u) => {
+      const pill = u.role === 'supersuper' ? '<span class="ow-pill super2">supersuper</span>' : '<span class="ow-pill">super</span>';
+      const del = u.name === me ? '' : `<button class="ow-del" data-name="${esc(u.name)}">Phimola</button>`;
+      return `<div class="ow-uitem"><span><span class="ow-uname">${esc(u.name)}</span>${pill}</span>${del}</div>`;
+    }).join('');
+    box.querySelectorAll('.ow-del').forEach((b) => { b.onclick = () => removeUser(b.getAttribute('data-name')); });
+  }
+
+  async function createUser() {
+    const name = document.getElementById('auName').value.trim();
+    const password = document.getElementById('auPass').value;
+    const role = document.getElementById('auRole').value;
+    if (!name || !password) { msg('auMsg', 'Tsenya leina le password. (Name and password needed.)', false); return; }
+    const btn = document.getElementById('auCreate');
+    btn.disabled = true;
+    const res = await F.createUser({ name, password, role });
+    btn.disabled = false;
+    if (authFailed(res)) return;
+    if (res.ok) {
+      msg('auMsg', 'Akhaonto e tlhamilwe! ✓ (Account created.)', true);
+      document.getElementById('auName').value = '';
+      document.getElementById('auPass').value = '';
+      loadUsers();
+    } else msg('auMsg', 'Phoso: ' + (res.error || ''), false);
+  }
+
+  async function removeUser(name) {
+    if (!confirm('Phimola akhaonto ya ' + name + '? (Delete this account?)')) return;
+    const res = await F.deleteUser(name);
+    if (authFailed(res)) return;
+    if (res.ok) { msg('auMsg', 'Phimotswe. (Deleted.)', true); loadUsers(); }
+    else msg('auMsg', 'Phoso: ' + (res.error || ''), false);
   }
 
   function init() { injectStyle(); build(); }
