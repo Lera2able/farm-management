@@ -579,6 +579,13 @@
     }
     if (!applyPresent(matched)) { msg('ocrMsg', 'Ga go kgonege go tshwaya mo skrineng se. (Could not mark on this screen.)', false); return; }
     if (typeof window.auditLog === 'function') window.auditLog('scan_applied', null, matched.length + ' marked' + (chosenDate ? ', ' + chosenDate : ''));
+    // push straight to the shared cloud register so it lands on every phone
+    if (typeof window.syncAttendanceCloud === 'function') {
+      var sdate = (typeof selectedDate !== 'undefined') ? selectedDate : (chosenDate || '');
+      window.syncAttendanceCloud(sdate).then(function (r) {
+        if (r && r.ok) msg('ocrMsg', (matched.length + ' di tshwailwe + di romilwe go difounu tsotlhe. (' + matched.length + ' marked + synced to all phones.)'), true);
+      });
+    }
     let t = matched.length + ' di tshwailwe teng. (' + matched.length + ' marked present.)';
     if (chosenDate) t += ' Letsatsi: ' + chosenDate + '.';
     if (unmatched.length) t += ' Tse di sa tshwanang: ' + unmatched.join(', ');

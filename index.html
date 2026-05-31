@@ -2689,6 +2689,7 @@
         let currentGroup = 'all'; // START WITH VIEW ALL
         let currentLivestock = [];
         let attendance = {};
+        let absentTouchedByDate = {}; // date -> { id:true } for tags explicitly UNticked (so corrections sync)
         let shepherdName = '';
         let selectedDate = '';
         let searchTerm = '';
@@ -2706,6 +2707,7 @@
             selectedDate = document.getElementById('dateInput').value;
             document.getElementById('dateDisplay').value = formatDate(selectedDate);
             loadGroup(); // Reload when date changes
+            pullAttendance(selectedDate); // and fetch what other phones saved for it
         }
 
         // Pull the herd from Supabase and merge in any animals not already in
@@ -2789,6 +2791,8 @@
             refreshHerdFromCloud();
             updateActionsVisibility();
             loadSickDead();
+            pullHealth();
+            pullAttendance(selectedDate);
         }
 
         // Switch tabs
@@ -2835,6 +2839,7 @@
             const cb = document.getElementById('sick_' + id);
             if (cb && cb.checked) { sickSet[id] = true; } else { delete sickSet[id]; }
             saveSickDead();
+            pushHealth(id);
             renderSick();
             auditLog(cb && cb.checked ? 'sick_on' : 'sick_off', id);
         }
@@ -2842,6 +2847,7 @@
             const cb = document.getElementById('deadcheck_' + id);
             if (cb && cb.checked) { deadSet[id] = true; } else { delete deadSet[id]; }
             saveSickDead();
+            pushHealth(id);
             renderDead();
             auditLog(cb && cb.checked ? 'dead_on' : 'dead_off', id);
         }
@@ -2886,8 +2892,8 @@
             const c = document.getElementById('deadCount'); if (c) c.textContent = Object.keys(deadSet).length;
         }
         // owner-only programmatic add/remove for the sick/dead lists
-        window.setSickState = function (id, on) { if (on) sickSet[id] = true; else delete sickSet[id]; saveSickDead(); renderSick(); auditLog(on ? "sick_on" : "sick_off", id); };
-        window.setDeadState = function (id, on) { if (on) deadSet[id] = true; else delete deadSet[id]; saveSickDead(); renderDead(); auditLog(on ? "dead_on" : "dead_off", id); };
+        window.setSickState = function (id, on) { if (on) sickSet[id] = true; else delete sickSet[id]; saveSickDead(); pushHealth(id); renderSick(); auditLog(on ? "sick_on" : "sick_off", id); };
+        window.setDeadState = function (id, on) { if (on) deadSet[id] = true; else delete deadSet[id]; saveSickDead(); pushHealth(id); renderDead(); auditLog(on ? "dead_on" : "dead_off", id); };
         window.isSick = function (id) { return !!sickSet[id]; };
         window.isDead = function (id) { return !!deadSet[id]; };
         function auditLog(type, livestockId, detail) {
@@ -2900,6 +2906,45 @@
             } catch (e) {}
         }
         window.auditLog = auditLog;
+
+        function actorName() {
+            try { const u = (window.FarmData && window.FarmData.getUser) ? window.FarmData.getUser() : null; return (u && u.name) ? u.name : (shepherdName || 'Modisa'); }
+            catch (e) { return shepherdName || 'Modisa'; }
+        }
+        // Pull the shared register for a date from the cloud and show it on this phone.
+        async function pullAttendance(date) {
+            if (!window.FarmData || !navigator.onLine || !window.FarmData.getAttendanceCloud) return;
+            try {
+                const res = await window.FarmData.getAttendanceCloud(date);
+                if (res && res.ok && Array.isArray(res.rows) && res.rows.length) {
+                    const row = res.rows.filter(function (r) { return r.date === date; })[0] || res.rows[0];
+                    const ids = Array.isArray(row.present_ids) ? row.present_ids : [];
+                    Object.keys(attendance).forEach(function (k) { if (k.slice(-10) === date) delete attendance[k]; });
+                    absentTouchedByDate[date] = {};
+                    const obj = {}; ids.forEach(function (id) { obj[String(id)] = true; });
+                    attendance['cloud_' + date] = obj;
+                    localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+                    if (typeof loadGroup === 'function') loadGroup();
+                    if (typeof updateStats === 'function') updateStats();
+                }
+            } catch (e) { console.log('pullAttendance skipped:', e.message); }
+        }
+        // Pull the shared sick/dead lists from the cloud.
+        async function pullHealth() {
+            if (!window.FarmData || !navigator.onLine || !window.FarmData.getHealthCloud) return;
+            try {
+                const res = await window.FarmData.getHealthCloud();
+                if (res && res.ok && Array.isArray(res.rows)) {
+                    const sk = {}, dd = {};
+                    res.rows.forEach(function (r) { if (r.sick) sk[String(r.livestock_id)] = true; if (r.dead) dd[String(r.livestock_id)] = true; });
+                    sickSet = sk; deadSet = dd; saveSickDead(); renderSick(); renderDead();
+                }
+            } catch (e) { console.log('pullHealth skipped:', e.message); }
+        }
+        function pushHealth(id) {
+            if (!window.FarmData || !navigator.onLine || !window.FarmData.setHealthCloud) return;
+            try { window.FarmData.setHealthCloud(id, !!sickSet[id], !!deadSet[id], actorName()); } catch (e) {}
+        }
 
         // ---- Stats / Dipalopalo (owner, under Actions) - source: master workbook + local ----
         let statsCache = null;
@@ -2954,6 +2999,21 @@
                     wbLoaded = true;
                 }
             } catch (e) { wbLoaded = false; }
+
+            // The shared cloud register wins for any day it holds (live, cross-device).
+            try {
+                if (window.FarmData && navigator.onLine && window.FarmData.getAttendanceCloud) {
+                    const cres = await window.FarmData.getAttendanceCloud();
+                    if (cres && cres.ok && Array.isArray(cres.rows)) {
+                        cres.rows.forEach(function (r) {
+                            const ymd = String(r.date).slice(0, 10);
+                            if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+                            const ids = Array.isArray(r.present_ids) ? r.present_ids : [];
+                            map[ymd] = { present: ids.length, total: totalActive, label: formatDate(ymd), src: 'cloud' };
+                        });
+                    }
+                }
+            } catch (e) {}
 
             const perDate = Object.keys(map).sort().map(function (k) {
                 const m = map[k];
@@ -3159,8 +3219,7 @@
                 return;
             }
             
-            const key = `${currentGroup}_${selectedDate}`;
-            const todayAttendance = attendance[key] || {};
+            const todayAttendance = presentSetForDate(selectedDate);
             const canEdit = !!(window.FarmData && window.FarmData.isAdmin());
             
             container.innerHTML = livestock.map((item, index) => {
@@ -3203,20 +3262,50 @@
             }).join('');
         }
 
+        // A date's present set is the union of every key ending in that date,
+        // so a cloud-pulled tick and any local view show together.
+        function presentSetForDate(date) {
+            const set = {};
+            Object.keys(attendance).forEach(function (k) {
+                if (k.slice(-10) === date && attendance[k]) {
+                    Object.keys(attendance[k]).forEach(function (id) { if (attendance[k][id] === true) set[id] = true; });
+                }
+            });
+            return set;
+        }
+        function setPresentLocal(id, on) {
+            const date = selectedDate;
+            if (!absentTouchedByDate[date]) absentTouchedByDate[date] = {};
+            if (on) {
+                const key = `${currentGroup}_${date}`;
+                if (!attendance[key]) attendance[key] = {};
+                attendance[key][id] = true;
+                delete absentTouchedByDate[date][id];
+            } else {
+                Object.keys(attendance).forEach(function (k) {
+                    if (k.slice(-10) === date && attendance[k] && (id in attendance[k])) delete attendance[k][id];
+                });
+                absentTouchedByDate[date][id] = true; // remember the un-tick so it can be pushed
+            }
+            localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+        }
+        // Push the current day's register to the shared cloud (merge + corrections).
+        window.syncAttendanceCloud = async function (date) {
+            if (!navigator.onLine || !window.FarmData || !window.FarmData.saveAttendanceCloud) return { ok: false };
+            const present = Object.keys(presentSetForDate(date));
+            const absentIds = Object.keys(absentTouchedByDate[date] || {});
+            try {
+                const r = await window.FarmData.saveAttendanceCloud(date, present, actorName(), absentIds);
+                if (r && r.ok) absentTouchedByDate[date] = {};
+                return r;
+            } catch (e) { return { ok: false }; }
+        };
         // Toggle attendance
         function toggleAttendance(livestockId) {
-            const key = `${currentGroup}_${selectedDate}`;
-            if (!attendance[key]) attendance[key] = {};
-            
             const checkbox = document.getElementById(`check_${livestockId}`);
-            attendance[key][livestockId] = checkbox.checked;
-            
-            localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
-            
-            if (typeof db !== 'undefined') {
-                db.saveLocalState(livestockId, checkbox.checked);
-            }
-            
+            const on = !!(checkbox && checkbox.checked);
+            setPresentLocal(livestockId, on);
+            if (typeof db !== 'undefined') { db.saveLocalState(livestockId, on); }
             loadGroup();
             updateStats();
         }
@@ -3275,6 +3364,14 @@
                 const presentCount = allPresentToday.length;
                 const absentCount = activeLivestock.length - presentCount;
                 auditLog('attendance_saved', null, presentCount + '/' + activeLivestock.length + ' present, ' + formatDate(selectedDate));
+                let cloudNote = '';
+                if (navigator.onLine && window.FarmData && window.FarmData.saveAttendanceCloud) {
+                    try {
+                        const absentIds = Object.keys(absentTouchedByDate[selectedDate] || {});
+                        const cr = await window.FarmData.saveAttendanceCloud(selectedDate, allPresentToday, shepherdName, absentIds);
+                        if (cr && cr.ok) { cloudNote = ' <span style="color:#065f46;">Synced to all phones</span>'; absentTouchedByDate[selectedDate] = {}; }
+                    } catch (e) {}
+                }
                 
                 // Save to localStorage first
                 if (typeof db !== 'undefined') {
@@ -3321,7 +3418,7 @@
                     } catch (e) { emailFailed = true; emailReason = 'send error'; emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>'; }
                 }
                 document.getElementById('successMessage').innerHTML = `
-                    <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!${WEBHOOK_CONFIG.enabled ? ' Synced to Excel!' : ''}${emailNote}</div>
+                    <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!${WEBHOOK_CONFIG.enabled ? ' Synced to Excel!' : ''}${cloudNote}${emailNote}</div>
                     ${emailFailed ? `<div class="alert-info" style="background:#fee2e2;color:#991b1b;border-color:#ef4444;margin-top:10px;text-align:left;">📧 Imeile ga e a romelwa. (Email not sent.)<br><small>${emailReason ? 'Reason: ' + emailReason : ''}</small></div>` : ''}
                 `;
 
