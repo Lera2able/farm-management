@@ -2901,23 +2901,67 @@
         }
         window.auditLog = auditLog;
 
-        // ---- Stats / Dipalopalo (owner, under Actions) ----
-        function statsCompute() {
-            const byDate = presentByDate();
-            const dates = Object.keys(byDate).sort();
+        // ---- Stats / Dipalopalo (owner, under Actions) - source: master workbook + local ----
+        let statsCache = null;
+        function parseSheetDate(name) {
+            let m = String(name).match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+            if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+            m = String(name).match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (m) return m[0];
+            return null;
+        }
+        async function loadStatsData() {
             const totalActive = LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; }).length;
-            const perDate = dates.map(function (d) {
-                const present = Object.keys(byDate[d] || {}).length;
-                const absent = Math.max(0, totalActive - present);
-                const pct = totalActive ? (present / totalActive * 100) : 0;
-                return { date: d, present: present, absent: absent, total: totalActive, pct: pct };
-            });
             const sold = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive && String(l.status).toLowerCase() === 'sold'; }).length;
             const died = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive && String(l.status).toLowerCase() === 'died'; }).length;
             const inactive = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive; }).length;
             const sickNow = Object.keys(sickSet || {}).length;
             const deadNow = Object.keys(deadSet || {}).length;
-            return { dates: dates, totalActive: totalActive, perDate: perDate, sold: sold, died: died, inactive: inactive, sickNow: sickNow, deadNow: deadNow };
+
+            const map = {};
+            // recent days saved on this device
+            const byDate = presentByDate();
+            Object.keys(byDate).forEach(function (ymd) {
+                map[ymd] = { present: Object.keys(byDate[ymd] || {}).length, total: totalActive, label: formatDate(ymd), src: 'local' };
+            });
+            // historical days from the master workbook (these win on overlap)
+            let wbLoaded = false;
+            try {
+                await ensureExcelJS();
+                const resp = await fetch('master_stock.xlsx', { cache: 'no-store' });
+                if (resp.ok) {
+                    const wb = new ExcelJS.Workbook();
+                    await wb.xlsx.load(await resp.arrayBuffer());
+                    wb.eachSheet(function (ws) {
+                        const name = ws.name;
+                        if (/dikgomo master/i.test(name) || /worker/i.test(name)) return;
+                        const a1 = ws.getCell(1, 1).value, b1 = ws.getCell(1, 2).value;
+                        if (String(a1 == null ? '' : a1).trim() !== 'Tag No' || String(b1 == null ? '' : b1).trim() !== 'Status') return;
+                        let present = 0, total = 0;
+                        const last = ws.rowCount;
+                        for (let r = 2; r <= last; r++) {
+                            const tag = ws.getCell(r, 1).value;
+                            if (tag == null || String(tag).trim() === '') continue;
+                            total++;
+                            const st = String(ws.getCell(r, 2).value == null ? '' : ws.getCell(r, 2).value).trim().toLowerCase();
+                            if (st === 'present') present++;
+                        }
+                        if (total === 0) return;
+                        const key = parseSheetDate(name) || name;
+                        const label = parseSheetDate(name) ? formatDate(parseSheetDate(name)) : name;
+                        map[key] = { present: present, total: total, label: label, src: 'workbook' };
+                    });
+                    wbLoaded = true;
+                }
+            } catch (e) { wbLoaded = false; }
+
+            const perDate = Object.keys(map).sort().map(function (k) {
+                const m = map[k];
+                const pct = m.total ? (m.present / m.total * 100) : 0;
+                return { date: k, label: m.label, present: m.present, absent: Math.max(0, m.total - m.present), total: m.total, pct: pct, src: m.src };
+            });
+            statsCache = { perDate: perDate, totalActive: totalActive, sold: sold, died: died, inactive: inactive, sickNow: sickNow, deadNow: deadNow, wbLoaded: wbLoaded };
+            return statsCache;
         }
         function statsKpi(label, val, color) {
             return '<div style="flex:1;min-width:88px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;text-align:center;">'
@@ -2934,7 +2978,7 @@
                 const x = pad + i * slot + (slot - bw) / 2;
                 const h = (base - 10) * (d.pct / 100);
                 const y = base - h;
-                bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" fill="#3b82f6"><title>' + d.date + ': ' + d.pct.toFixed(1) + '% (' + d.present + '/' + d.total + ')</title></rect>';
+                bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" fill="#3b82f6"><title>' + d.label + ': ' + d.pct.toFixed(1) + '% (' + d.present + '/' + d.total + ')</title></rect>';
             });
             return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:100%;height:auto;">' + bars
                 + '<line x1="' + pad + '" y1="' + base + '" x2="' + (W - pad) + '" y2="' + base + '" stroke="#e5e7eb" stroke-width="1"/></svg>';
@@ -2947,7 +2991,8 @@
                 + '<rect x="0" y="0" width="' + pw.toFixed(1) + '" height="' + H + '" fill="#10b981"/></svg>';
         }
         function renderStats() {
-            const s = statsCompute();
+            if (!statsCache) return;
+            const s = statsCache;
             const sel = document.getElementById('statsDate');
             const choice = sel ? sel.value : 'overall';
             let head = '';
@@ -2960,7 +3005,7 @@
                     + statsKpi('Palogare (Avg)', avg.toFixed(0) + '%', '#10b981')
                     + statsKpi('A teng (Active)', s.totalActive, '#1f2937') + '</div>';
                 if (latest) {
-                    head += '<p style="margin:0 0 6px;color:#374151;"><b>' + formatDate(latest.date) + '</b> (bofelo / latest): '
+                    head += '<p style="margin:0 0 6px;color:#374151;"><b>' + latest.label + '</b> (bofelo / latest): '
                         + latest.present + '/' + latest.total + ' teng &middot; ' + latest.pct.toFixed(1) + '%</p>'
                         + statsSplitSVG(latest.present, latest.total);
                 }
@@ -2981,25 +3026,29 @@
                 + statsKpi('A suleng (Died)', s.died, '#374151')
                 + statsKpi('A lwala (Sick now)', s.sickNow, '#f59e0b')
                 + statsKpi('Tshwailwe sule (Dead-marked)', s.deadNow, '#ef4444') + '</div>';
+            const note = s.wbLoaded ? '' : '<p style="font-size:12px;color:#b45309;margin-top:10px;">Master ga e a kgona go laisiwa, go diriswa dintlha tsa sediriswa se fela. (Could not load the master workbook, showing this device only.)</p>';
             const trend = '<h3 style="margin:18px 0 8px;color:#1e3a8a;">Go nna teng ka matsatsi (Attendance over time)</h3>'
                 + statsTrendSVG(s.perDate);
-            document.getElementById('statsBody').innerHTML = head + herd + trend;
+            document.getElementById('statsBody').innerHTML = head + herd + trend + note;
         }
-        function showStats() {
-            const sel = document.getElementById('statsDate');
-            const dates = Object.keys(presentByDate()).sort().reverse();
-            let opts = '<option value="overall">Tsotlhe (Overall)</option>';
-            dates.forEach(function (d) { opts += '<option value="' + d + '">' + formatDate(d) + '</option>'; });
-            sel.innerHTML = opts;
+        async function showStats() {
             document.getElementById('statsModal').classList.remove('hidden');
+            document.getElementById('statsBody').innerHTML = '<p style="color:#6b7280;">Go a laiswa... (Loading...)</p>';
+            const sel = document.getElementById('statsDate');
+            sel.innerHTML = '<option value="overall">Tsotlhe (Overall)</option>';
+            await loadStatsData();
+            let opts = '<option value="overall">Tsotlhe (Overall)</option>';
+            statsCache.perDate.slice().reverse().forEach(function (d) { opts += '<option value="' + d.date + '">' + d.label + '</option>'; });
+            sel.innerHTML = opts;
             renderStats();
         }
         function closeStats() { document.getElementById('statsModal').classList.add('hidden'); }
-        function downloadStatsCSV() {
-            const s = statsCompute();
+        async function downloadStatsCSV() {
+            if (!statsCache) await loadStatsData();
+            const s = statsCache;
             const NL = String.fromCharCode(10);
-            const rows = [['Date', 'Present', 'Absent', 'Total Active', 'Percentage']];
-            s.perDate.forEach(function (d) { rows.push([d.date, d.present, d.absent, d.total, d.pct.toFixed(1) + '%']); });
+            const rows = [['Date', 'Present', 'Absent', 'Total', 'Percentage']];
+            s.perDate.forEach(function (d) { rows.push([d.label, d.present, d.absent, d.total, d.pct.toFixed(1) + '%']); });
             rows.push([]);
             rows.push(['Herd summary (current)']);
             rows.push(['Active', s.totalActive]);
