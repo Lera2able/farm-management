@@ -11,6 +11,7 @@ window.FarmData = (function () {
   const FN_URL = SUPABASE_URL + '/functions/v1/farm-admin';
   const FN_OCR_URL = SUPABASE_URL + '/functions/v1/farm-ocr';
   const FN_NOTIFY_URL = SUPABASE_URL + '/functions/v1/farm-notify';
+  const FN_VOICE_URL = SUPABASE_URL + '/functions/v1/farm-voice';
   const SESSION_KEY = 'farm_session';
 
   // ---- lazy supabase-js client (for open herd reads only) ----
@@ -143,6 +144,28 @@ window.FarmData = (function () {
   }
 
   // ---- OCR: read tag numbers from a photo (farm-ocr function) ----
+  async function scanVoice(audio, mediaType) {
+    const sess = getSession();
+    if (!sess) return { ok: false, error: 'Not logged in', code: 'AUTH' };
+    try {
+      const res = await fetch(FN_VOICE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': PUBLISHABLE_KEY,
+          'Authorization': 'Bearer ' + PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ token: sess.token, audio: audio, mediaType: mediaType }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data && data.code === 'AUTH') adminLogout();
+      if (!res.ok && !data.error) return { ok: false, error: 'HTTP ' + res.status };
+      return data;
+    } catch (e) {
+      return { ok: false, error: 'No connection. (Ga go na inthanete.)' };
+    }
+  }
+
   async function scanNumbers(image, mediaType) {
     const s = getSession();
     if (!s) return { ok: false, error: 'Not logged in', code: 'AUTH' };
@@ -190,7 +213,7 @@ window.FarmData = (function () {
   return {
     getClient, loadHerd, getStats, groupForId,
     adminLogin, adminLogout, isAdmin, getUser, isSuperSuper,
-    updateLineage, registerCalf, editAnimal, addComment, getComments, scanNumbers,
+    updateLineage, registerCalf, editAnimal, addComment, getComments, scanNumbers, scanVoice,
     listUsers, createUser, deleteUser,
     logAudit, getAudit, notifyAttendance,
   };

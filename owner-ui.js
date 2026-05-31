@@ -394,9 +394,11 @@
       <div class="ow-card">
         <span class="ow-x" id="ocrClose">&times;</span>
         <h2>Bala Dinomoro (Scan numbers)</h2>
-        <p>Tsea senepe sa lenaneo la dinomoro, mme o tlhole pele o boloka. (Photograph the list, then check before saving.)</p>
+        <p>Tsea senepe kgotsa o rekote lentswe la dinomoro, mme o tlhole pele o boloka. (Photo or voice note, then check before saving.)</p>
         <input type="file" id="ocrFile" accept="image/*" style="display:none">
         <button class="ow-btn" id="ocrPick">\U0001F4F7 Tsea senepe (Take / choose photo)</button>
+        <input type="file" id="ocrAudio" accept="audio/*" style="display:none">
+        <button class="ow-btn ow-btn-grey" id="ocrVoice" style="margin-top:8px">🎤 Dirisa lentswe (Use a voice note)</button>
         <div class="ow-msg" id="ocrMsg"></div>
         <div id="ocrReview" style="display:none">
           <div class="ow-meta" id="ocrSummary"></div>
@@ -415,6 +417,8 @@
     document.getElementById('ocrPick').onclick = function () { document.getElementById('ocrFile').click(); };
     document.getElementById('ocrFile').addEventListener('change', onPhoto);
     document.getElementById('ocrApply').onclick = applyScan;
+    document.getElementById('ocrVoice').onclick = function () { document.getElementById('ocrAudio').click(); };
+    document.getElementById('ocrAudio').addEventListener('change', onVoice);
   }
 
   async function openScan() {
@@ -442,6 +446,46 @@
       img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('bad image')); };
       img.src = url;
     });
+  }
+
+  function fileToBase64(file) {
+    return new Promise(function (resolve, reject) {
+      const r = new FileReader();
+      r.onload = function () { resolve(String(r.result).split('base64,')[1]); };
+      r.onerror = function () { reject(new Error('read')); };
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function onVoice(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    document.getElementById('ocrReview').style.display = 'none';
+    msg('ocrMsg', 'Go reediwa lentswe... (Listening, please wait.)', true);
+    let b64;
+    try { b64 = await fileToBase64(file); }
+    catch (err) { msg('ocrMsg', 'Ga go kgonege go bula rekoto. (Could not open the recording.)', false); return; }
+    const res = await F.scanVoice(b64, file.type || 'audio/m4a');
+    if (authFailed(res)) { closeScan(); return; }
+    if (!res.ok) { msg('ocrMsg', 'Phoso: ' + (res.error || ''), false); return; }
+    if (!res.numbers || !res.numbers.length) {
+      msg('ocrMsg', 'Ga go na dinomoro tse di utlwilweng. (No numbers heard.)' + (res.transcript ? ' \u201C' + res.transcript + '\u201D' : ''), false);
+      return;
+    }
+    clearMsg('ocrMsg');
+    scanRows = res.numbers.map(function (n) { return { value: String(n), present: true }; });
+    scanDate = (res.date && /^\d{4}-\d{2}-\d{2}$/.test(res.date)) ? res.date : '';
+    var di0 = document.getElementById('dateInput');
+    var odIn = document.getElementById('ocrDate');
+    if (odIn) odIn.value = scanDate || (di0 ? di0.value : '');
+    var dnote = document.getElementById('ocrDateNote');
+    if (dnote) dnote.textContent = scanDate
+      ? 'Letsatsi le utlwilwe mo lentsweng. (Date heard in the recording.)'
+      : 'Ga go letsatsi le le utlwilweng, netefatsa le le fa godimo. (No date heard, confirm above.)';
+    renderRows();
+    document.getElementById('ocrReview').style.display = '';
+    if (res.transcript) msg('ocrMsg', 'Se se utlwilweng: \u201C' + res.transcript + '\u201D', true);
   }
 
   async function onPhoto(e) {
