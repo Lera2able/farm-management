@@ -212,6 +212,8 @@ window.FarmData = (function () {
 
   // ---- shared daily register + health (open endpoints; shepherd has no login) ----
   function saveAttendanceCloud(date, presentIds, by, absentIds) { return callFn('saveAttendance', { date: date, presentIds: presentIds, by: by, absentIds: absentIds || [] }); }
+  function deleteAttendanceCloud(date) { return callAuthed('deleteAttendance', { date: date }); }
+  function clearHealthCloud(scope) { return callAuthed('clearHealth', { scope: scope }); }
   function getAttendanceCloud(date) { return callFn('getAttendance', date ? { date: date } : {}); }
   function setHealthCloud(livestockId, sick, dead, by) { return callFn('setHealth', { livestockId: livestockId, sick: sick, dead: dead, by: by }); }
   function getHealthCloud() { return callFn('getHealth', {}); }
@@ -223,5 +225,6 @@ window.FarmData = (function () {
     listUsers, createUser, deleteUser,
     logAudit, getAudit, notifyAttendance,
     saveAttendanceCloud, getAttendanceCloud, setHealthCloud, getHealthCloud,
+    deleteAttendanceCloud, clearHealthCloud,
   };
 })();

@@ -655,6 +655,11 @@
                         <div class="action-title">Dipalopalo (Stats)</div>
                         <div class="action-desc">Counts, %, graph, by date, downloadable</div>
                     </div>
+                    <div class="action-card" onclick="showDeleteData()">
+                        <div class="action-icon">🗑️</div>
+                        <div class="action-title">Phimola data (Delete data)</div>
+                        <div class="action-desc">Remove unwanted or test records</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -783,6 +788,24 @@
             </div>
             <div id="statsBody"></div>
             <button class="btn btn-primary btn-full" onclick="downloadStatsCSV()" style="margin-top:14px;">⬇️ Download stats (CSV)</button>
+        </div>
+    </div>
+
+    <!-- Delete data (owner) -->
+    <div id="deleteModal" class="modal hidden">
+        <div class="modal-content" style="max-width:600px;">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeDeleteData()">&times;</button>
+                <h2>🗑️ Phimola data (Delete data)</h2>
+                <p style="color:#6b7280;font-size:14px;">Phimola direkoto tse o sa di batleng (Remove unwanted or test records)</p>
+            </div>
+            <h3 style="margin:6px 0 8px;color:#1e3a8a;">Matsatsi a direkoto (Saved days)</h3>
+            <div id="delDates"></div>
+            <h3 style="margin:18px 0 8px;color:#1e3a8a;">Mafelo a bophelo (Health lists)</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-small" style="background:#f59e0b;color:#fff;" onclick="doClearHealth('sick')">Phimola Bolwetse (Clear sick)</button>
+                <button class="btn btn-small" style="background:#ef4444;color:#fff;" onclick="doClearHealth('dead')">Phimola Sule (Clear dead)</button>
+            </div>
         </div>
     </div>
 
@@ -3127,6 +3150,57 @@
             setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
         }
         window.showStats = showStats;
+
+        // ---- Delete data (owner): remove unwanted/test records ----
+        function showDeleteData() {
+            if (!(window.FarmData && window.FarmData.isAdmin && window.FarmData.isAdmin())) { alert('Tsena pele. (Please log in first.)'); return; }
+            document.getElementById('deleteModal').classList.remove('hidden');
+            renderDeleteDates();
+        }
+        function closeDeleteData() { document.getElementById('deleteModal').classList.add('hidden'); }
+        async function renderDeleteDates() {
+            const box = document.getElementById('delDates');
+            box.innerHTML = '<p style="color:#6b7280;">Go a laiswa... (Loading...)</p>';
+            try {
+                const res = await window.FarmData.getAttendanceCloud();
+                if (!res || !res.ok) { box.innerHTML = '<p style="color:#b91c1c;">' + ((res && res.error) || 'Error') + '</p>'; return; }
+                const rows = (res.rows || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+                if (!rows.length) { box.innerHTML = '<p style="color:#6b7280;">Ga go na direkoto mo loraleng. (No saved days in the cloud.)</p>'; return; }
+                box.innerHTML = rows.map(function (r) {
+                    const n = Array.isArray(r.present_ids) ? r.present_ids.length : 0;
+                    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:6px;">'
+                        + '<div><b>' + formatDate(r.date) + '</b> &middot; ' + n + ' teng<br><small style="color:#6b7280;">' + (r.updated_by || '') + '</small></div>'
+                        + '<button class="btn btn-small" style="background:#ef4444;color:#fff;white-space:nowrap;" onclick="doDeleteDate(\'' + r.date + '\')">🗑️ Phimola</button>'
+                        + '</div>';
+                }).join('');
+            } catch (e) { box.innerHTML = '<p style="color:#b91c1c;">' + e.message + '</p>'; }
+        }
+        async function doDeleteDate(date) {
+            if (!confirm('Phimola direkoto tsa ' + formatDate(date) + '?\nGa e kgone go busiwa. (Delete this day? This cannot be undone.)')) return;
+            const res = await window.FarmData.deleteAttendanceCloud(date);
+            if (res && res.ok) {
+                Object.keys(attendance).forEach(function (k) { if (k.slice(-10) === date) delete attendance[k]; });
+                if (absentTouchedByDate[date]) delete absentTouchedByDate[date];
+                localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+                statsCache = null;
+                if (date === selectedDate && typeof loadGroup === 'function') loadGroup();
+                renderDeleteDates();
+            } else {
+                alert('Ga e a kgona. (Failed.) ' + ((res && res.error) || ''));
+            }
+        }
+        async function doClearHealth(scope) {
+            const eng = scope === 'sick' ? 'sick' : 'dead';
+            if (!confirm('Phimola lenaneo la ' + (scope === 'sick' ? 'Bolwetse' : 'Sule') + '?\nGa e kgone go busiwa. (Clear the ' + eng + ' list? This cannot be undone.)')) return;
+            const res = await window.FarmData.clearHealthCloud(scope);
+            if (res && res.ok) {
+                if (typeof pullHealth === 'function') await pullHealth();
+                alert('Go phimotswe. (Cleared.)');
+            } else {
+                alert('Ga e a kgona. (Failed.) ' + ((res && res.error) || ''));
+            }
+        }
+        window.showDeleteData = showDeleteData;
 
         // Load livestock group
         function loadGroup() {
