@@ -650,6 +650,11 @@
                         <div class="action-title">Audit Trail</div>
                         <div class="action-desc">All entries: comments, sick, dead, edits</div>
                     </div>
+                    <div class="action-card" onclick="showStats()">
+                        <div class="action-icon">📊</div>
+                        <div class="action-title">Dipalopalo (Stats)</div>
+                        <div class="action-desc">Counts, %, graph, by date, downloadable</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -761,6 +766,23 @@
             <button class="btn btn-primary btn-full" onclick="downloadExcelReport()">
                 \U0001F4E5 Download
             </button>
+        </div>
+    </div>
+
+    <!-- Stats / Dipalopalo -->
+    <div id="statsModal" class="modal hidden">
+        <div class="modal-content" style="max-width:680px;">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeStats()">&times;</button>
+                <h2>📊 Dipalopalo (Stats)</h2>
+                <p style="color:#6b7280;font-size:14px;">Dintlha ka matsatsi (Figures by date)</p>
+            </div>
+            <div class="form-group">
+                <label>Letlha (Date)</label>
+                <select id="statsDate" onchange="renderStats()"></select>
+            </div>
+            <div id="statsBody"></div>
+            <button class="btn btn-primary btn-full" onclick="downloadStatsCSV()" style="margin-top:14px;">⬇️ Download stats (CSV)</button>
         </div>
     </div>
 
@@ -2878,6 +2900,124 @@
             } catch (e) {}
         }
         window.auditLog = auditLog;
+
+        // ---- Stats / Dipalopalo (owner, under Actions) ----
+        function statsCompute() {
+            const byDate = presentByDate();
+            const dates = Object.keys(byDate).sort();
+            const totalActive = LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; }).length;
+            const perDate = dates.map(function (d) {
+                const present = Object.keys(byDate[d] || {}).length;
+                const absent = Math.max(0, totalActive - present);
+                const pct = totalActive ? (present / totalActive * 100) : 0;
+                return { date: d, present: present, absent: absent, total: totalActive, pct: pct };
+            });
+            const sold = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive && String(l.status).toLowerCase() === 'sold'; }).length;
+            const died = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive && String(l.status).toLowerCase() === 'died'; }).length;
+            const inactive = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive; }).length;
+            const sickNow = Object.keys(sickSet || {}).length;
+            const deadNow = Object.keys(deadSet || {}).length;
+            return { dates: dates, totalActive: totalActive, perDate: perDate, sold: sold, died: died, inactive: inactive, sickNow: sickNow, deadNow: deadNow };
+        }
+        function statsKpi(label, val, color) {
+            return '<div style="flex:1;min-width:88px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;text-align:center;">'
+                + '<div style="font-size:23px;font-weight:800;color:' + (color || '#1f2937') + ';">' + val + '</div>'
+                + '<div style="font-size:12px;color:#6b7280;">' + label + '</div></div>';
+        }
+        function statsTrendSVG(perDate) {
+            if (!perDate.length) return '<p style="color:#6b7280;">Ga go na dintlha. (No data yet.)</p>';
+            const W = 620, H = 190, pad = 26, base = H - 24, n = perDate.length;
+            const slot = (W - pad * 2) / n;
+            const bw = Math.max(5, Math.min(38, slot * 0.7));
+            let bars = '';
+            perDate.forEach(function (d, i) {
+                const x = pad + i * slot + (slot - bw) / 2;
+                const h = (base - 10) * (d.pct / 100);
+                const y = base - h;
+                bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" fill="#3b82f6"><title>' + d.date + ': ' + d.pct.toFixed(1) + '% (' + d.present + '/' + d.total + ')</title></rect>';
+            });
+            return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:100%;height:auto;">' + bars
+                + '<line x1="' + pad + '" y1="' + base + '" x2="' + (W - pad) + '" y2="' + base + '" stroke="#e5e7eb" stroke-width="1"/></svg>';
+        }
+        function statsSplitSVG(present, total) {
+            const W = 620, H = 34, t = total || 1;
+            const pw = W * (present / t);
+            return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="height:34px;border-radius:8px;overflow:hidden;">'
+                + '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#ef4444"/>'
+                + '<rect x="0" y="0" width="' + pw.toFixed(1) + '" height="' + H + '" fill="#10b981"/></svg>';
+        }
+        function renderStats() {
+            const s = statsCompute();
+            const sel = document.getElementById('statsDate');
+            const choice = sel ? sel.value : 'overall';
+            let head = '';
+            if (choice === 'overall') {
+                const days = s.perDate.length;
+                const avg = days ? (s.perDate.reduce(function (a, b) { return a + b.pct; }, 0) / days) : 0;
+                const latest = days ? s.perDate[s.perDate.length - 1] : null;
+                head = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+                    + statsKpi('Matsatsi (Days)', days, '#3b82f6')
+                    + statsKpi('Palogare (Avg)', avg.toFixed(0) + '%', '#10b981')
+                    + statsKpi('A teng (Active)', s.totalActive, '#1f2937') + '</div>';
+                if (latest) {
+                    head += '<p style="margin:0 0 6px;color:#374151;"><b>' + formatDate(latest.date) + '</b> (bofelo / latest): '
+                        + latest.present + '/' + latest.total + ' teng &middot; ' + latest.pct.toFixed(1) + '%</p>'
+                        + statsSplitSVG(latest.present, latest.total);
+                }
+            } else {
+                const d = s.perDate.filter(function (x) { return x.date === choice; })[0];
+                if (d) {
+                    head = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+                        + statsKpi('Teng (Present)', d.present, '#10b981')
+                        + statsKpi('Seyo (Absent)', d.absent, '#ef4444')
+                        + statsKpi('Diphesente (%)', d.pct.toFixed(1) + '%', '#3b82f6') + '</div>'
+                        + statsSplitSVG(d.present, d.total);
+                }
+            }
+            const herd = '<h3 style="margin:18px 0 8px;color:#1e3a8a;">Boemo jwa leruo (Herd status)</h3>'
+                + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+                + statsKpi('A teng (Active)', s.totalActive, '#10b981')
+                + statsKpi('A rekisitswe (Sold)', s.sold, '#6b7280')
+                + statsKpi('A suleng (Died)', s.died, '#374151')
+                + statsKpi('A lwala (Sick now)', s.sickNow, '#f59e0b')
+                + statsKpi('Tshwailwe sule (Dead-marked)', s.deadNow, '#ef4444') + '</div>';
+            const trend = '<h3 style="margin:18px 0 8px;color:#1e3a8a;">Go nna teng ka matsatsi (Attendance over time)</h3>'
+                + statsTrendSVG(s.perDate);
+            document.getElementById('statsBody').innerHTML = head + herd + trend;
+        }
+        function showStats() {
+            const sel = document.getElementById('statsDate');
+            const dates = Object.keys(presentByDate()).sort().reverse();
+            let opts = '<option value="overall">Tsotlhe (Overall)</option>';
+            dates.forEach(function (d) { opts += '<option value="' + d + '">' + formatDate(d) + '</option>'; });
+            sel.innerHTML = opts;
+            document.getElementById('statsModal').classList.remove('hidden');
+            renderStats();
+        }
+        function closeStats() { document.getElementById('statsModal').classList.add('hidden'); }
+        function downloadStatsCSV() {
+            const s = statsCompute();
+            const NL = String.fromCharCode(10);
+            const rows = [['Date', 'Present', 'Absent', 'Total Active', 'Percentage']];
+            s.perDate.forEach(function (d) { rows.push([d.date, d.present, d.absent, d.total, d.pct.toFixed(1) + '%']); });
+            rows.push([]);
+            rows.push(['Herd summary (current)']);
+            rows.push(['Active', s.totalActive]);
+            rows.push(['Inactive', s.inactive]);
+            rows.push(['Sold', s.sold]);
+            rows.push(['Died', s.died]);
+            rows.push(['Currently sick', s.sickNow]);
+            rows.push(['Currently dead-marked', s.deadNow]);
+            const csv = rows.map(function (r) { return r.join(','); }).join(NL);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const today = new Date().toISOString().split('T')[0];
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'Dikgomo_Stats_' + today + '.csv';
+            document.body.appendChild(a); a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        }
+        window.showStats = showStats;
 
         // Load livestock group
         function loadGroup() {
