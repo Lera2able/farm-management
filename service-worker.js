@@ -1,6 +1,6 @@
 // Service Worker - network-first so new commits reach devices as soon as
 // they are online, while still working offline from the last good copy.
-const CACHE_NAME = 'dikgomo-v3';
+const CACHE_NAME = 'dikgomo-v4';
 const CORE = ['./', './index.html', './manifest.json', './supabase-data.js', './owner-ui.js'];
 
 self.addEventListener('install', (event) => {

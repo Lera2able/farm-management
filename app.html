@@ -1,0 +1,4067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+      // Khumotaka gate: only people who passed the password gate (or are already
+      // granted on this device) may open the register; others go to the home page.
+      (function () { try { if (localStorage.getItem('khumotaka_access') !== 'granted') { location.replace('index.html'); } } catch (e) {} })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dikgomo Register — Khumotaka</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- EmailJS for automatic email notifications -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script type="text/javascript">
+        // EmailJS Configuration - ADD YOUR KEYS HERE AFTER SIGNUP
+        const EMAIL_CONFIG = {
+            serviceID: 'service_jqkr42i',      // EmailJS Service ID
+            templateID: 'template_i8iuvaz',    // EmailJS Template ID
+            publicKey: 'rnJzbY1y7N3GgbwjH',    // EmailJS Public Key
+            enabled: true                       // ENABLED - Emails will send automatically!
+        };
+        
+        // Initialize EmailJS
+        if (EMAIL_CONFIG.enabled && EMAIL_CONFIG.publicKey) {
+            emailjs.init(EMAIL_CONFIG.publicKey);
+        }
+    </script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+            margin-bottom: 60px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            background: #f3f4f6;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .nav-tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            color: #6b7280;
+            transition: all 0.3s;
+        }
+        
+        .nav-tab.active {
+            color: #3b82f6;
+            background: white;
+            border-bottom: 3px solid #3b82f6;
+        }
+        
+        .content {
+            padding: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 14px;
+        }
+        
+        select, input[type="date"], input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .search-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .search-row .or-text {
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        
+        .search-row .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        
+        .teacher-info {
+            background: #f0f9ff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .teacher-info-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .teacher-info-header span:first-child {
+            font-size: 18px;
+        }
+        
+        .teacher-info-header span:last-child {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .stats-box {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 30px 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .stats-box h3 {
+            font-size: 48px;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+        
+        .stats-box p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .livestock-list {
+            margin-top: 20px;
+        }
+        
+        .livestock-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #f9fafb;
+            transition: all 0.2s;
+        }
+        
+        .livestock-item:hover {
+            background: #f3f4f6;
+        }
+        
+        .livestock-item.present {
+            background: #d1fae5;
+            border-color: #10b981;
+        }
+        
+        .livestock-item.inactive {
+            background: #fee2e2;
+            border-color: #ef4444;
+            opacity: 0.7;
+        }
+        
+        .livestock-item.hidden {
+            display: none;
+        }
+        
+        .livestock-info {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .livestock-number {
+            background: #3b82f6;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        
+        .livestock-name {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 16px;
+        }
+        
+        .livestock-status {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+        
+        .livestock-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        input[type="checkbox"] {
+            width: 22px;
+            height: 22px;
+            cursor: pointer;
+            accent-color: #10b981;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #059669;
+        }
+        
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #d97706;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .btn-full {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .action-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .action-card {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .action-card:hover {
+            background: #f3f4f6;
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+        }
+        
+        .action-icon {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+        
+        .action-title {
+            font-weight: 700;
+            color: #1f2937;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        
+        .action-desc {
+            color: #6b7280;
+            font-size: 13px;
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        
+        .modal.hidden {
+            display: none;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        
+        .modal-header h2 {
+            color: #1f2937;
+            margin-bottom: 5px;
+            font-size: 22px;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: -5px;
+            right: 0;
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #6b7280;
+            line-height: 1;
+        }
+        
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 2px solid #10b981;
+            font-size: 16px;
+            font-weight: 600;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 2px solid #3b82f6;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+        
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+        }
+        
+        .sync-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-weight: 600;
+            font-size: 14px;
+            z-index: 999;
+        }
+        
+        .sync-indicator.online {
+            color: #059669;
+            border: 2px solid #10b981;
+        }
+        
+        .sync-indicator.offline {
+            color: #d97706;
+            border: 2px solid #f59e0b;
+        }
+        
+        .floating-save-btn {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 40px);
+            max-width: 1160px;
+            z-index: 998;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🐄 Dikgomo Register</h1>
+            <p>Palo ya Leruo</p>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" id="registerTabBtn" onclick="switchTab('register')">
+                📋 Leruo
+            </button>
+            <button class="nav-tab" id="sickTabBtn" onclick="switchTab('sick')">
+                🤒 Bolwetse
+            </button>
+            <button class="nav-tab" id="deadTabBtn" onclick="switchTab('dead')">
+                ⚰️ Sule
+            </button>
+            <button class="nav-tab" id="actionsTabBtn" onclick="switchTab('actions')" style="display:none">
+                ⚙️ Actions
+            </button>
+        </div>
+
+        <!-- Register Tab Content -->
+        <div id="registerTab" class="tab-content active">
+            <div class="content">
+                
+                <!-- MODISA INFORMATION FIRST -->
+                <div class="teacher-info">
+                    <div class="teacher-info-header">
+                        <span>👤</span>
+                        <span>Modisa Information</span>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" id="shepherdName" placeholder="Leina la Modisa (Shepherd Name)">
+                    </div>
+                </div>
+
+                <!-- Select Date - Shows TODAY by default -->
+                <div class="form-group">
+                    <label>Select Date</label>
+                    <input type="text" id="dateDisplay" readonly style="background: white; cursor: pointer; font-weight: 600;" onclick="document.getElementById('dateInput').showPicker()">
+                    <input type="date" id="dateInput" style="display: none;" onchange="updateDateDisplay()">
+                </div>
+
+                <!-- Group Selection -->
+                <div class="form-group">
+                    <label>Kgetha Setlhopha</label>
+                    <select id="groupSelect" onchange="loadGroup()">
+                        <option value="all">Tsohle (View All - Including Inactive)</option>
+                        <option value="active">Active Only</option>
+                        <option value="special">Rikus (Poo)</option>
+                        <option value="11">Dikgomo 11xxx</option>
+                        <option value="55">Dikgomo 55xxx</option>
+                        <option value="56">Dikgomo 56xxx</option>
+                        <option value="58">Dikgomo 58xxx</option>
+                        <option value="72">Dikgomo 72xxx</option>
+                        <option value="other">Tse Dingwe</option>
+                        <option value="inactive">Ga e dire (Inactive)</option>
+                    </select>
+                </div>
+
+                <!-- Or + Search -->
+                <div class="search-row">
+                    <span class="or-text">Kapa</span>
+                    <div class="form-group">
+                        <label>Batla Nomoro (Search Number)</label>
+                        <input type="text" id="searchInput" placeholder="e.g., 11250" oninput="handleSearch()">
+                    </div>
+                </div>
+
+                <!-- Search Result Message -->
+                <div id="searchMessage"></div>
+
+                <!-- Stats Box -->
+                <div class="stats-box">
+                    <h3><span id="presentCount">0</span>/<span id="totalCount">0</span></h3>
+                    <p>Teng Gompieno (Present Today)</p>
+                </div>
+
+                <!-- Livestock List -->
+                <div id="livestockList" class="livestock-list" style="margin-bottom: 100px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🐄</div>
+                        <p>Loading livestock data...</p>
+                    </div>
+                </div>
+
+                <!-- Save Button - FLOATING -->
+                <button class="btn btn-success btn-full floating-save-btn" onclick="saveAttendance()" id="saveBtn">
+                    💾 Boloka (Save Attendance)
+                </button>
+
+                <!-- Sync Button -->
+                <button class="btn btn-primary btn-full" onclick="syncData()" id="syncBtn">
+                    🔄 Tlhabolola (Sync Data)
+                </button>
+
+                <div id="successMessage"></div>
+            </div>
+        </div>
+
+        <!-- Actions Tab Content -->
+        <div id="actionsTab" class="tab-content">
+            <div class="content">
+                <h2 style="margin-bottom: 20px; color: #1f2937;">Quick Actions</h2>
+                <div class="action-cards">
+                    <div class="action-card" onclick="showAddModal()">
+                        <div class="action-icon">➕</div>
+                        <div class="action-title">Tsenya Nomoro e Ntšhwa</div>
+                        <div class="action-desc">Add new livestock number</div>
+                    </div>
+                    <div class="action-card" onclick="showRegisterModal()">
+                        <div class="action-icon">📝</div>
+                        <div class="action-title">Ikwadise/Tshwaya</div>
+                        <div class="action-desc">Register sold/died livestock</div>
+                    </div>
+                    <div class="action-card" onclick="showInactiveModal()">
+                        <div class="action-icon">📋</div>
+                        <div class="action-title">View Inactive</div>
+                        <div class="action-desc">See all sold/died livestock</div>
+                    </div>
+                    <div class="action-card" onclick="showExcelDateModal()">
+                        <div class="action-icon">📥</div>
+                        <div class="action-title">Download Excel</div>
+                        <div class="action-desc">Export attendance to Excel file</div>
+                    </div>
+                    <div class="action-card" onclick="downloadMaster()">
+                        <div class="action-icon">📒</div>
+                        <div class="action-title">Download Master</div>
+                        <div class="action-desc">Full workbook, a tab per date</div>
+                    </div>
+                    <div class="action-card" onclick="showAuditTrail()">
+                        <div class="action-icon">🧾</div>
+                        <div class="action-title">Audit Trail</div>
+                        <div class="action-desc">All entries: comments, sick, dead, edits</div>
+                    </div>
+                    <div class="action-card" onclick="showStats()">
+                        <div class="action-icon">📊</div>
+                        <div class="action-title">Dipalopalo (Stats)</div>
+                        <div class="action-desc">Counts, %, graph, by date, downloadable</div>
+                    </div>
+                    <div class="action-card" onclick="showDeleteData()">
+                        <div class="action-icon">🗑️</div>
+                        <div class="action-title">Phimola data (Delete data)</div>
+                        <div class="action-desc">Remove unwanted or test records</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SICK TAB (farmer, tick boxes only) -->
+        <div id="sickTab" class="tab-content">
+            <div style="padding: 20px;">
+                <h2 style="margin-bottom: 6px; color: #1f2937;">🤒 Bolwetse</h2>
+                <p style="color: #6b7280; margin-bottom: 16px;">Tshwaya dikgomo tse di lwalang.</p>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px;">
+                    <input type="text" id="sickSearch" placeholder="Batla nomoro..." oninput="renderSick()"
+                           style="flex:1; min-width:180px; padding:12px; border:2px solid #e5e7eb; border-radius:10px; font-size:16px;">
+                    <span id="sickCount" style="background:#fef3c7; color:#92400e; font-weight:700; padding:8px 14px; border-radius:20px;">0</span>
+                </div>
+                <div id="sickList" class="livestock-list" style="margin-bottom: 100px;"></div>
+            </div>
+        </div>
+
+        <!-- DEAD TAB (farmer, tick boxes only) -->
+        <div id="deadTab" class="tab-content">
+            <div style="padding: 20px;">
+                <h2 style="margin-bottom: 6px; color: #1f2937;">⚰️ Tse di Suleng</h2>
+                <p style="color: #6b7280; margin-bottom: 16px;">Tshwaya dikgomo tse di suleng.</p>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px;">
+                    <input type="text" id="deadSearch" placeholder="Batla nomoro..." oninput="renderDead()"
+                           style="flex:1; min-width:180px; padding:12px; border:2px solid #e5e7eb; border-radius:10px; font-size:16px;">
+                    <span id="deadCount" style="background:#fee2e2; color:#991b1b; font-weight:700; padding:8px 14px; border-radius:20px;">0</span>
+                </div>
+                <div id="deadList" class="livestock-list" style="margin-bottom: 100px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Livestock Modal -->
+    <div id="addModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+                <h2>Tsenya Nomoro e Ntšhwa</h2>
+                <p style="color: #6b7280; font-size: 14px;">Add New Livestock Number</p>
+            </div>
+            <div class="form-group">
+                <label>Nomoro ya Leruo (Livestock Number)</label>
+                <input type="text" id="newLivestockNumber" placeholder="e.g., 11250">
+            </div>
+            <button class="btn btn-primary btn-full" onclick="submitNewLivestock()">
+                ✓ Romela (Submit)
+            </button>
+        </div>
+    </div>
+
+    <!-- Register Sold/Died Modal -->
+    <div id="registerModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeRegisterModal()">&times;</button>
+                <h2>Ikwadise/Tshwaya</h2>
+                <p style="color: #6b7280; font-size: 14px;">Register Sold or Died Livestock</p>
+            </div>
+            <div class="form-group">
+                <label>Nomoro ya Leruo (Livestock Number)</label>
+                <input type="text" id="regSearchInput" placeholder="Batla nomoro... (Search)" oninput="filterRegisterDropdown()" style="margin-bottom: 10px;">
+                <select id="regLivestockSelect" size="8" style="height: 200px;">
+                    <option value="">Kgetha nomoro...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select id="regStatus">
+                    <option value="">Kgetha...</option>
+                    <option value="sold">Rekisitswe (Sold)</option>
+                    <option value="died">Sule (Died)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Letlha (Date)</label>
+                <input type="date" id="regDate">
+            </div>
+            <button class="btn btn-danger btn-full" onclick="submitRegistration()">
+                ✓ Ikwadise (Register)
+            </button>
+        </div>
+    </div>
+
+    <!-- View Inactive Modal -->
+    <div id="inactiveModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeInactiveModal()">&times;</button>
+                <h2>Inactive Livestock</h2>
+                <p style="color: #6b7280; font-size: 14px;">All Sold/Died Livestock</p>
+            </div>
+            <div id="inactiveList"></div>
+        </div>
+    </div>
+
+    <!-- Download Excel: choose date -->
+    <div id="excelModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeExcelModal()">&times;</button>
+                <h2>Download Excel</h2>
+                <p style="color: #6b7280; font-size: 14px;">Kgetha letlha (Choose which date to export)</p>
+            </div>
+            <div class="form-group">
+                <label>Letlha (Date)</label>
+                <select id="excelDateSelect"></select>
+            </div>
+            <button class="btn btn-primary btn-full" onclick="downloadExcelReport()">
+                \U0001F4E5 Download
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats / Dipalopalo -->
+    <div id="statsModal" class="modal hidden">
+        <div class="modal-content" style="max-width:680px;">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeStats()">&times;</button>
+                <h2>📊 Dipalopalo (Stats)</h2>
+                <p style="color:#6b7280;font-size:14px;">Dintlha ka matsatsi (Figures by date)</p>
+            </div>
+            <div class="form-group">
+                <label>Letlha (Date)</label>
+                <select id="statsDate" onchange="renderStats()"></select>
+            </div>
+            <div id="statsBody"></div>
+            <button class="btn btn-primary btn-full" onclick="downloadStatsCSV()" style="margin-top:14px;">⬇️ Download stats (CSV)</button>
+        </div>
+    </div>
+
+    <!-- Delete data (owner) -->
+    <div id="deleteModal" class="modal hidden">
+        <div class="modal-content" style="max-width:600px;">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeDeleteData()">&times;</button>
+                <h2>🗑️ Phimola data (Delete data)</h2>
+                <p style="color:#6b7280;font-size:14px;">Phimola direkoto tse o sa di batleng (Remove unwanted or test records)</p>
+            </div>
+            <h3 style="margin:6px 0 8px;color:#1e3a8a;">Matsatsi a direkoto (Saved days)</h3>
+            <div id="delDates"></div>
+            <h3 style="margin:18px 0 8px;color:#1e3a8a;">Mafelo a bophelo (Health lists)</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-small" style="background:#f59e0b;color:#fff;" onclick="doClearHealth('sick')">Phimola Bolwetse (Clear sick)</button>
+                <button class="btn btn-small" style="background:#ef4444;color:#fff;" onclick="doClearHealth('dead')">Phimola Sule (Clear dead)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Indicator -->
+    <div id="syncIndicator" class="sync-indicator online">
+        ✓ Online
+    </div>
+
+    <script>
+        // LIVESTOCK DATA - Embedded (315 animals including Rikus, JH1408, Olebile, Rush, Ouben)
+        let LIVESTOCK_DATA = [
+        {
+                "id": "Rikus",
+                "group": "special",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "40555",
+                "group": "other",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55903",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55905",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55907",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55909",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55910",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55915",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55920",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55922",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55935",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55947",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55949",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55952",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55953",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55955",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55956",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55958",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55959",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55962",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55963",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55965",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55966",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55967",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55968",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55969",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55971",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55972",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55973",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55975",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55977",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55978",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55979",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55980",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55982",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55985",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55986",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55987",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55988",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55989",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55991",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55992",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55993",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55995",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55996",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55997",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "55999",
+                "group": "55",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56000",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56137",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56153",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56154",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56156",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56157",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56158",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56159",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56160",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56175",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56176",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56177",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56178",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56179",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56180",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56181",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56182",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "53183",
+                "group": "other",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56184",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56185",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56186",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56187",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56188",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56189",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56190",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56191",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56192",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56193",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56194",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56195",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56196",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56197",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56198",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "56199",
+                "group": "56",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58151",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58152",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58153",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58155",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58156",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58157",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58158",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58159",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58160",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58162",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58165",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58166",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58168",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58169",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58171",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58172",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58173",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58174",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58175",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58176",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58177",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58178",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58179",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58180",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58181",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58182",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58183",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58184",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58185",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58186",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58187",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58188",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58189",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58190",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58191",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58192",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58193",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58194",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58195",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58196",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58197",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58198",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58199",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58200",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58213",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58214",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58215",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58216",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58217",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58218",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58219",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58220",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58221",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58222",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58223",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58224",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58225",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58226",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58227",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "JH1408",
+                "group": "other",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "Olebile",
+                "group": "other",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "Rush",
+                "group": "other",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "Ouben",
+                "group": "other",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58228",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58229",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58230",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58231",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58232",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58233",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58234",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58235",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58236",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58237",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58238",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58239",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58240",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58241",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58242",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58243",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58244",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58245",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58246",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58249",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "58250",
+                "group": "58",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72301",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72302",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72303",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72304",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72305",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72306",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72307",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72308",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72309",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72310",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72311",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72312",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72313",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72314",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72315",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72316",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72317",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72318",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72319",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72320",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72321",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72322",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72323",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72324",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72325",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72326",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72327",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72328",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72329",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72330",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72331",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72332",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72333",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72334",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72335",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72336",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72337",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72338",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72339",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72340",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72341",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72342",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72343",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72344",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72345",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72346",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72347",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72348",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72349",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72350",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72351",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72352",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72353",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72354",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72355",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72356",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72357",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72358",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72359",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72360",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72361",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72362",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72363",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72364",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72365",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72366",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72367",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72368",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72369",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72370",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72371",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72372",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72373",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72374",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72375",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72376",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "72377",
+                "group": "72",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "152",
+                "group": "other",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "2075",
+                "group": "other",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11201",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11202",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11203",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11204",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11205",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11206",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11207",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11208",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11209",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11210",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11211",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11212",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11213",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11214",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11215",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11216",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11217",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11218",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11219",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11220",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11221",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11222",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11223",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11224",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11225",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11226",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11227",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11228",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11229",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11230",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11231",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11232",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11233",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11234",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11235",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11236",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11237",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11238",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11239",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11240",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11241",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11242",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11243",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11244",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11245",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11246",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11247",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11248",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11249",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11250",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11251",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11252",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11253",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11254",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11255",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11256",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11257",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11258",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11259",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11260",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11261",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11262",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11263",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11264",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11265",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11266",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11267",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11268",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11269",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11270",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        },
+        {
+                "id": "11271",
+                "group": "11",
+                "is_inactive": false,
+                "status": ""
+        }
+];
+        // Application State
+        let currentGroup = 'all'; // START WITH VIEW ALL
+        let currentLivestock = [];
+        let attendance = {};
+        let absentTouchedByDate = {}; // date -> { id:true } for tags explicitly UNticked (so corrections sync)
+        let shepherdName = '';
+        let selectedDate = '';
+        let searchTerm = '';
+
+        // Format date as DD/MM/YYYY like Carissa
+        function formatDate(dateString) {
+            const date = new Date(dateString + 'T00:00:00');
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        function updateDateDisplay() {
+            selectedDate = document.getElementById('dateInput').value;
+            document.getElementById('dateDisplay').value = formatDate(selectedDate);
+            loadGroup(); // Reload when date changes
+            pullAttendance(selectedDate); // and fetch what other phones saved for it
+        }
+
+        // Pull the herd from Supabase and merge in any animals not already in
+        // the local list (e.g. calves registered in the owner panel). It never
+        // removes or overwrites existing entries, so the daily app's own data
+        // is left intact. Runs only when online; offline it simply returns.
+        async function refreshHerdFromCloud() {
+            if (!window.FarmData || !navigator.onLine) return;
+            try {
+                const cloud = await window.FarmData.loadHerd();
+                if (!Array.isArray(cloud) || !cloud.length) return;
+                const have = new Set(LIVESTOCK_DATA.map(a => String(a.id)));
+                const additions = cloud
+                    .filter(a => !have.has(String(a.id)))
+                    .map(a => ({ id: a.id, group: a.group, is_inactive: !!a.is_inactive, status: a.status || '' }));
+                if (!additions.length) return;
+                LIVESTOCK_DATA = LIVESTOCK_DATA.concat(additions);
+                localStorage.setItem('dikgomo_livestock', JSON.stringify(LIVESTOCK_DATA));
+                console.log('Added ' + additions.length + ' animal(s) from Supabase');
+                if (!searchTerm) loadGroup(); // refresh view unless a search is in progress
+            } catch (e) {
+                console.log('Cloud herd refresh skipped:', e.message);
+            }
+        }
+
+        // Initialize
+        function init() {
+            console.log('Loading LIVESTOCK_DATA...', LIVESTOCK_DATA ? LIVESTOCK_DATA.length + ' animals' : 'FAILED');
+            
+            // Set TODAY's date in both formats
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const todayString = `${yyyy}-${mm}-${dd}`;
+            
+            selectedDate = todayString;
+            document.getElementById('dateInput').value = todayString;
+            document.getElementById('dateDisplay').value = formatDate(todayString);
+            
+            console.log('TODAY:', formatDate(todayString));
+            
+            // Load from localStorage
+            const saved = localStorage.getItem('dikgomo_attendance');
+            const savedShepherd = localStorage.getItem('dikgomo_shepherd');
+            
+            if (saved) attendance = JSON.parse(saved);
+            if (savedShepherd) {
+                shepherdName = savedShepherd;
+                document.getElementById('shepherdName').value = shepherdName;
+            }
+            
+            // Update online/offline status
+            updateOnlineStatus();
+            window.addEventListener('online', updateOnlineStatus);
+            window.addEventListener('offline', updateOnlineStatus);
+            
+            // Save shepherd name on change
+            document.getElementById('shepherdName').addEventListener('change', function() {
+                shepherdName = this.value;
+                localStorage.setItem('dikgomo_shepherd', shepherdName);
+            });
+            
+            // Initialize database
+            if (typeof db !== 'undefined') {
+                db.init();
+            }
+            
+            // Load saved livestock data from localStorage
+            const savedLivestock = localStorage.getItem('dikgomo_livestock');
+            if (savedLivestock) {
+                LIVESTOCK_DATA = JSON.parse(savedLivestock);
+                console.log('Loaded saved livestock from localStorage');
+            }
+            
+            // AUTO-LOAD ALL LIVESTOCK ON START
+            loadGroup();
+
+            // Then pull the latest herd from Supabase so newly registered
+            // calves show up. Safe offline: it does nothing without a signal.
+            refreshHerdFromCloud();
+            updateActionsVisibility();
+            loadSickDead();
+            pullHealth();
+            pullAttendance(selectedDate);
+        }
+
+        // Switch tabs
+        function updateActionsVisibility() {
+            const btn = document.getElementById("actionsTabBtn");
+            const isAdmin = !!(window.FarmData && window.FarmData.isAdmin());
+            if (btn) btn.style.display = isAdmin ? "" : "none";
+            if (!isAdmin) {
+                const at = document.getElementById("actionsTab");
+                if (at && at.classList.contains("active")) switchTab("register");
+            }
+        }
+        function switchTab(tab) {
+            if (tab === 'actions' && !(window.FarmData && window.FarmData.isAdmin())) tab = 'register';
+            const map = {
+                register: ['registerTabBtn', 'registerTab'],
+                sick: ['sickTabBtn', 'sickTab'],
+                dead: ['deadTabBtn', 'deadTab'],
+                actions: ['actionsTabBtn', 'actionsTab']
+            };
+            const m = map[tab] || map.register;
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const btn = document.getElementById(m[0]);
+            const content = document.getElementById(m[1]);
+            if (btn) btn.classList.add('active');
+            if (content) content.classList.add('active');
+            if (tab === 'sick') renderSick();
+            if (tab === 'dead') renderDead();
+        }
+
+        // ---- Farmer Sick / Dead ticking (tick boxes only) ----
+        let sickSet = {};
+        let deadSet = {};
+        function loadSickDead() {
+            try { sickSet = JSON.parse(localStorage.getItem('dikgomo_sick') || '{}') || {}; } catch (e) { sickSet = {}; }
+            try { deadSet = JSON.parse(localStorage.getItem('dikgomo_dead') || '{}') || {}; } catch (e) { deadSet = {}; }
+        }
+        function saveSickDead() {
+            localStorage.setItem('dikgomo_sick', JSON.stringify(sickSet));
+            localStorage.setItem('dikgomo_dead', JSON.stringify(deadSet));
+        }
+        function toggleSick(id) {
+            const cb = document.getElementById('sick_' + id);
+            if (cb && cb.checked) { sickSet[id] = true; } else { delete sickSet[id]; }
+            saveSickDead();
+            pushHealth(id);
+            renderSick();
+            auditLog(cb && cb.checked ? 'sick_on' : 'sick_off', id);
+        }
+        function toggleDead(id) {
+            const cb = document.getElementById('deadcheck_' + id);
+            if (cb && cb.checked) { deadSet[id] = true; } else { delete deadSet[id]; }
+            saveSickDead();
+            pushHealth(id);
+            renderDead();
+            auditLog(cb && cb.checked ? 'dead_on' : 'dead_off', id);
+        }
+        function renderTickList(containerId, searchId, setObj, idPrefix, toggleFn, label, tint, type) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const canEdit = !!(window.FarmData && window.FarmData.isAdmin());
+            const q = (document.getElementById(searchId) ? document.getElementById(searchId).value : '').trim().toLowerCase();
+            let list = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+            if (q) list = list.filter(l => String(l.id).toLowerCase().includes(q));
+            if (list.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🐄</div><p>Ga go na dikgomo.</p></div>';
+                return;
+            }
+            container.innerHTML = list.map((item, index) => {
+                const on = !!setObj[item.id];
+                const editBtn = canEdit
+                    ? `<button class="btn btn-primary btn-small" onclick="farmSickDeadEdit('${item.id}','${type}')" style="white-space:nowrap;">✏️ Edit</button>`
+                    : '';
+                return `
+                    <div class="livestock-item" data-livestock-id="${item.id}" style="${on ? 'background:' + tint + ';' : ''}">
+                        <div class="livestock-info">
+                            <div class="livestock-number">${index + 1}</div>
+                            <div><div class="livestock-name">${item.id}</div></div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            ${editBtn}
+                            <div class="checkbox-wrapper">
+                                <input type="checkbox" id="${idPrefix}${item.id}" ${on ? 'checked' : ''} onchange="${toggleFn}('${item.id}')">
+                                <label for="${idPrefix}${item.id}">${label}</label>
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+        function renderSick() {
+            renderTickList('sickList', 'sickSearch', sickSet, 'sick_', 'toggleSick', 'Bolwetse', '#fff7ed', 'sick');
+            const c = document.getElementById('sickCount'); if (c) c.textContent = Object.keys(sickSet).length;
+        }
+        function renderDead() {
+            renderTickList('deadList', 'deadSearch', deadSet, 'deadcheck_', 'toggleDead', 'Sule', '#fef2f2', 'dead');
+            const c = document.getElementById('deadCount'); if (c) c.textContent = Object.keys(deadSet).length;
+        }
+        // owner-only programmatic add/remove for the sick/dead lists
+        window.setSickState = function (id, on) { if (on) sickSet[id] = true; else delete sickSet[id]; saveSickDead(); pushHealth(id); renderSick(); auditLog(on ? "sick_on" : "sick_off", id); };
+        window.setDeadState = function (id, on) { if (on) deadSet[id] = true; else delete deadSet[id]; saveSickDead(); pushHealth(id); renderDead(); auditLog(on ? "dead_on" : "dead_off", id); };
+        window.isSick = function (id) { return !!sickSet[id]; };
+        window.isDead = function (id) { return !!deadSet[id]; };
+        function auditLog(type, livestockId, detail) {
+            try {
+                if (!window.FarmData || !navigator.onLine) return;
+                const admin = window.FarmData.isAdmin && window.FarmData.isAdmin();
+                const u = (admin && window.FarmData.getUser) ? window.FarmData.getUser() : null;
+                const actor = (u && u.name) ? u.name : (shepherdName || "Modisa");
+                window.FarmData.logAudit({ type: type, livestockId: livestockId || null, detail: detail || null, actor: actor, source: admin ? "owner" : "farmer" });
+            } catch (e) {}
+        }
+        window.auditLog = auditLog;
+
+        function actorName() {
+            try { const u = (window.FarmData && window.FarmData.getUser) ? window.FarmData.getUser() : null; return (u && u.name) ? u.name : (shepherdName || 'Modisa'); }
+            catch (e) { return shepherdName || 'Modisa'; }
+        }
+        // Pull the shared register for a date from the cloud and show it on this phone.
+        async function pullAttendance(date) {
+            if (!window.FarmData || !navigator.onLine || !window.FarmData.getAttendanceCloud) return;
+            try {
+                const res = await window.FarmData.getAttendanceCloud(date);
+                if (res && res.ok && Array.isArray(res.rows) && res.rows.length) {
+                    const row = res.rows.filter(function (r) { return r.date === date; })[0] || res.rows[0];
+                    const ids = Array.isArray(row.present_ids) ? row.present_ids : [];
+                    Object.keys(attendance).forEach(function (k) { if (k.slice(-10) === date) delete attendance[k]; });
+                    absentTouchedByDate[date] = {};
+                    const obj = {}; ids.forEach(function (id) { obj[String(id)] = true; });
+                    attendance['cloud_' + date] = obj;
+                    localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+                    if (typeof loadGroup === 'function') loadGroup();
+                    if (typeof updateStats === 'function') updateStats();
+                }
+            } catch (e) { console.log('pullAttendance skipped:', e.message); }
+        }
+        // Pull the shared sick/dead lists from the cloud.
+        async function pullHealth() {
+            if (!window.FarmData || !navigator.onLine || !window.FarmData.getHealthCloud) return;
+            try {
+                const res = await window.FarmData.getHealthCloud();
+                if (res && res.ok && Array.isArray(res.rows)) {
+                    const sk = {}, dd = {};
+                    res.rows.forEach(function (r) { if (r.sick) sk[String(r.livestock_id)] = true; if (r.dead) dd[String(r.livestock_id)] = true; });
+                    sickSet = sk; deadSet = dd; saveSickDead(); renderSick(); renderDead();
+                }
+            } catch (e) { console.log('pullHealth skipped:', e.message); }
+        }
+        function pushHealth(id) {
+            if (!window.FarmData || !navigator.onLine || !window.FarmData.setHealthCloud) return;
+            try { window.FarmData.setHealthCloud(id, !!sickSet[id], !!deadSet[id], actorName()); } catch (e) {}
+        }
+
+        // ---- Stats / Dipalopalo (owner, under Actions) - source: master workbook + local ----
+        let statsCache = null;
+        function parseSheetDate(name) {
+            let m = String(name).match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+            if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+            m = String(name).match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (m) return m[0];
+            return null;
+        }
+        async function loadStatsData() {
+            const totalActive = LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; }).length;
+            const sold = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive && String(l.status).toLowerCase() === 'sold'; }).length;
+            const died = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive && String(l.status).toLowerCase() === 'died'; }).length;
+            const inactive = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive; }).length;
+            const sickNow = Object.keys(sickSet || {}).length;
+            const deadNow = Object.keys(deadSet || {}).length;
+
+            const map = {};
+            // recent days saved on this device
+            const byDate = presentByDate();
+            Object.keys(byDate).forEach(function (ymd) {
+                map[ymd] = { present: Object.keys(byDate[ymd] || {}).length, total: totalActive, label: formatDate(ymd), src: 'local' };
+            });
+            // historical days from the master workbook (these win on overlap)
+            let wbLoaded = false;
+            try {
+                await ensureExcelJS();
+                const resp = await fetch('master_stock.xlsx', { cache: 'no-store' });
+                if (resp.ok) {
+                    const wb = new ExcelJS.Workbook();
+                    await wb.xlsx.load(await resp.arrayBuffer());
+                    wb.eachSheet(function (ws) {
+                        const name = ws.name;
+                        if (/dikgomo master/i.test(name) || /worker/i.test(name)) return;
+                        const a1 = ws.getCell(1, 1).value, b1 = ws.getCell(1, 2).value;
+                        if (String(a1 == null ? '' : a1).trim() !== 'Tag No' || String(b1 == null ? '' : b1).trim() !== 'Status') return;
+                        let present = 0, total = 0;
+                        const last = ws.rowCount;
+                        for (let r = 2; r <= last; r++) {
+                            const tag = ws.getCell(r, 1).value;
+                            if (tag == null || String(tag).trim() === '') continue;
+                            total++;
+                            const st = String(ws.getCell(r, 2).value == null ? '' : ws.getCell(r, 2).value).trim().toLowerCase();
+                            if (st === 'present') present++;
+                        }
+                        if (total === 0) return;
+                        const key = parseSheetDate(name) || name;
+                        const label = parseSheetDate(name) ? formatDate(parseSheetDate(name)) : name;
+                        map[key] = { present: present, total: total, label: label, src: 'workbook' };
+                    });
+                    wbLoaded = true;
+                }
+            } catch (e) { wbLoaded = false; }
+
+            // The shared cloud register wins for any day it holds (live, cross-device).
+            try {
+                if (window.FarmData && navigator.onLine && window.FarmData.getAttendanceCloud) {
+                    const cres = await window.FarmData.getAttendanceCloud();
+                    if (cres && cres.ok && Array.isArray(cres.rows)) {
+                        cres.rows.forEach(function (r) {
+                            const ymd = String(r.date).slice(0, 10);
+                            if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+                            const ids = Array.isArray(r.present_ids) ? r.present_ids : [];
+                            map[ymd] = { present: ids.length, total: totalActive, label: formatDate(ymd), src: 'cloud' };
+                        });
+                    }
+                }
+            } catch (e) {}
+
+            const perDate = Object.keys(map).sort().map(function (k) {
+                const m = map[k];
+                const pct = m.total ? (m.present / m.total * 100) : 0;
+                return { date: k, label: m.label, present: m.present, absent: Math.max(0, m.total - m.present), total: m.total, pct: pct, src: m.src };
+            });
+            statsCache = { perDate: perDate, totalActive: totalActive, sold: sold, died: died, inactive: inactive, sickNow: sickNow, deadNow: deadNow, wbLoaded: wbLoaded };
+            return statsCache;
+        }
+        function statsKpi(label, val, color) {
+            return '<div style="flex:1;min-width:88px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;text-align:center;">'
+                + '<div style="font-size:23px;font-weight:800;color:' + (color || '#1f2937') + ';">' + val + '</div>'
+                + '<div style="font-size:12px;color:#6b7280;">' + label + '</div></div>';
+        }
+        function statsTrendSVG(perDate) {
+            if (!perDate.length) return '<p style="color:#6b7280;">Ga go na dintlha. (No data yet.)</p>';
+            const W = 620, H = 190, pad = 26, base = H - 24, n = perDate.length;
+            const slot = (W - pad * 2) / n;
+            const bw = Math.max(5, Math.min(38, slot * 0.7));
+            let bars = '';
+            perDate.forEach(function (d, i) {
+                const x = pad + i * slot + (slot - bw) / 2;
+                const h = (base - 10) * (d.pct / 100);
+                const y = base - h;
+                bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" fill="#3b82f6"><title>' + d.label + ': ' + d.pct.toFixed(1) + '% (' + d.present + '/' + d.total + ')</title></rect>';
+            });
+            return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:100%;height:auto;">' + bars
+                + '<line x1="' + pad + '" y1="' + base + '" x2="' + (W - pad) + '" y2="' + base + '" stroke="#e5e7eb" stroke-width="1"/></svg>';
+        }
+        function statsSplitSVG(present, total) {
+            const W = 620, H = 34, t = total || 1;
+            const pw = W * (present / t);
+            return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="height:34px;border-radius:8px;overflow:hidden;">'
+                + '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#ef4444"/>'
+                + '<rect x="0" y="0" width="' + pw.toFixed(1) + '" height="' + H + '" fill="#10b981"/></svg>';
+        }
+        function renderStats() {
+            if (!statsCache) return;
+            const s = statsCache;
+            const sel = document.getElementById('statsDate');
+            const choice = sel ? sel.value : 'overall';
+            let head = '';
+            if (choice === 'overall') {
+                const days = s.perDate.length;
+                const avg = days ? (s.perDate.reduce(function (a, b) { return a + b.pct; }, 0) / days) : 0;
+                const latest = days ? s.perDate[s.perDate.length - 1] : null;
+                head = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+                    + statsKpi('Matsatsi (Days)', days, '#3b82f6')
+                    + statsKpi('Palogare (Avg)', avg.toFixed(0) + '%', '#10b981')
+                    + statsKpi('A teng (Active)', s.totalActive, '#1f2937') + '</div>';
+                if (latest) {
+                    head += '<p style="margin:0 0 6px;color:#374151;"><b>' + latest.label + '</b> (bofelo / latest): '
+                        + latest.present + '/' + latest.total + ' teng &middot; ' + latest.pct.toFixed(1) + '%</p>'
+                        + statsSplitSVG(latest.present, latest.total);
+                }
+            } else {
+                const d = s.perDate.filter(function (x) { return x.date === choice; })[0];
+                if (d) {
+                    head = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+                        + statsKpi('Teng (Present)', d.present, '#10b981')
+                        + statsKpi('Seyo (Absent)', d.absent, '#ef4444')
+                        + statsKpi('Diphesente (%)', d.pct.toFixed(1) + '%', '#3b82f6') + '</div>'
+                        + statsSplitSVG(d.present, d.total);
+                }
+            }
+            const herd = '<h3 style="margin:18px 0 8px;color:#1e3a8a;">Boemo jwa leruo (Herd status)</h3>'
+                + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+                + statsKpi('A teng (Active)', s.totalActive, '#10b981')
+                + statsKpi('A rekisitswe (Sold)', s.sold, '#6b7280')
+                + statsKpi('A suleng (Died)', s.died, '#374151')
+                + statsKpi('A lwala (Sick now)', s.sickNow, '#f59e0b')
+                + statsKpi('Tshwailwe sule (Dead-marked)', s.deadNow, '#ef4444') + '</div>';
+            const note = s.wbLoaded ? '' : '<p style="font-size:12px;color:#b45309;margin-top:10px;">Master ga e a kgona go laisiwa, go diriswa dintlha tsa sediriswa se fela. (Could not load the master workbook, showing this device only.)</p>';
+            const trend = '<h3 style="margin:18px 0 8px;color:#1e3a8a;">Go nna teng ka matsatsi (Attendance over time)</h3>'
+                + statsTrendSVG(s.perDate);
+            document.getElementById('statsBody').innerHTML = head + herd + trend + note;
+        }
+        async function showStats() {
+            document.getElementById('statsModal').classList.remove('hidden');
+            document.getElementById('statsBody').innerHTML = '<p style="color:#6b7280;">Go a laiswa... (Loading...)</p>';
+            const sel = document.getElementById('statsDate');
+            sel.innerHTML = '<option value="overall">Tsotlhe (Overall)</option>';
+            await loadStatsData();
+            let opts = '<option value="overall">Tsotlhe (Overall)</option>';
+            statsCache.perDate.slice().reverse().forEach(function (d) { opts += '<option value="' + d.date + '">' + d.label + '</option>'; });
+            sel.innerHTML = opts;
+            renderStats();
+        }
+        function closeStats() { document.getElementById('statsModal').classList.add('hidden'); }
+        async function downloadStatsCSV() {
+            if (!statsCache) await loadStatsData();
+            const s = statsCache;
+            const NL = String.fromCharCode(10);
+            const rows = [['Date', 'Present', 'Absent', 'Total', 'Percentage']];
+            s.perDate.forEach(function (d) { rows.push([d.label, d.present, d.absent, d.total, d.pct.toFixed(1) + '%']); });
+            rows.push([]);
+            rows.push(['Herd summary (current)']);
+            rows.push(['Active', s.totalActive]);
+            rows.push(['Inactive', s.inactive]);
+            rows.push(['Sold', s.sold]);
+            rows.push(['Died', s.died]);
+            rows.push(['Currently sick', s.sickNow]);
+            rows.push(['Currently dead-marked', s.deadNow]);
+            const csv = rows.map(function (r) { return r.join(','); }).join(NL);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const today = new Date().toISOString().split('T')[0];
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'Dikgomo_Stats_' + today + '.csv';
+            document.body.appendChild(a); a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        }
+        window.showStats = showStats;
+
+        // ---- Delete data (owner): remove unwanted/test records ----
+        function showDeleteData() {
+            if (!(window.FarmData && window.FarmData.isAdmin && window.FarmData.isAdmin())) { alert('Tsena pele. (Please log in first.)'); return; }
+            document.getElementById('deleteModal').classList.remove('hidden');
+            renderDeleteDates();
+        }
+        function closeDeleteData() { document.getElementById('deleteModal').classList.add('hidden'); }
+        async function renderDeleteDates() {
+            const box = document.getElementById('delDates');
+            box.innerHTML = '<p style="color:#6b7280;">Go a laiswa... (Loading...)</p>';
+            try {
+                const res = await window.FarmData.getAttendanceCloud();
+                if (!res || !res.ok) { box.innerHTML = '<p style="color:#b91c1c;">' + ((res && res.error) || 'Error') + '</p>'; return; }
+                const rows = (res.rows || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+                if (!rows.length) { box.innerHTML = '<p style="color:#6b7280;">Ga go na direkoto mo loraleng. (No saved days in the cloud.)</p>'; return; }
+                box.innerHTML = rows.map(function (r) {
+                    const n = Array.isArray(r.present_ids) ? r.present_ids.length : 0;
+                    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:6px;">'
+                        + '<div><b>' + formatDate(r.date) + '</b> &middot; ' + n + ' teng<br><small style="color:#6b7280;">' + (r.updated_by || '') + '</small></div>'
+                        + '<button class="btn btn-small" style="background:#ef4444;color:#fff;white-space:nowrap;" onclick="doDeleteDate(\'' + r.date + '\')">🗑️ Phimola</button>'
+                        + '</div>';
+                }).join('');
+            } catch (e) { box.innerHTML = '<p style="color:#b91c1c;">' + e.message + '</p>'; }
+        }
+        async function doDeleteDate(date) {
+            if (!confirm('Phimola direkoto tsa ' + formatDate(date) + '?\nGa e kgone go busiwa. (Delete this day? This cannot be undone.)')) return;
+            const res = await window.FarmData.deleteAttendanceCloud(date);
+            if (res && res.ok) {
+                Object.keys(attendance).forEach(function (k) { if (k.slice(-10) === date) delete attendance[k]; });
+                if (absentTouchedByDate[date]) delete absentTouchedByDate[date];
+                localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+                statsCache = null;
+                if (date === selectedDate && typeof loadGroup === 'function') loadGroup();
+                renderDeleteDates();
+            } else {
+                alert('Ga e a kgona. (Failed.) ' + ((res && res.error) || ''));
+            }
+        }
+        async function doClearHealth(scope) {
+            const eng = scope === 'sick' ? 'sick' : 'dead';
+            if (!confirm('Phimola lenaneo la ' + (scope === 'sick' ? 'Bolwetse' : 'Sule') + '?\nGa e kgone go busiwa. (Clear the ' + eng + ' list? This cannot be undone.)')) return;
+            const res = await window.FarmData.clearHealthCloud(scope);
+            if (res && res.ok) {
+                if (typeof pullHealth === 'function') await pullHealth();
+                alert('Go phimotswe. (Cleared.)');
+            } else {
+                alert('Ga e a kgona. (Failed.) ' + ((res && res.error) || ''));
+            }
+        }
+        window.showDeleteData = showDeleteData;
+
+        // Load livestock group
+        function loadGroup() {
+            currentGroup = document.getElementById('groupSelect').value;
+            searchTerm = ''; // Clear search
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchMessage').innerHTML = '';
+            
+            // Filter livestock - "all" shows EVERYTHING including inactive
+            if (currentGroup === 'all') {
+                currentLivestock = LIVESTOCK_DATA; // ALL including inactive
+            } else if (currentGroup === 'active') {
+                currentLivestock = LIVESTOCK_DATA.filter(item => !item.is_inactive);
+            } else if (currentGroup === 'inactive') {
+                currentLivestock = LIVESTOCK_DATA.filter(item => item.is_inactive);
+            } else if (currentGroup === 'special') {
+                currentLivestock = LIVESTOCK_DATA.filter(item => item.group === 'special' && !item.is_inactive);
+            } else {
+                currentLivestock = LIVESTOCK_DATA.filter(item => {
+                    return item.group === currentGroup && !item.is_inactive;
+                });
+            }
+            
+            console.log(`Group: ${currentGroup}, Showing: ${currentLivestock.length} animals`);
+            renderLivestock(currentLivestock);
+            updateStats();
+        }
+
+        // Handle search
+        function handleSearch() {
+            searchTerm = document.getElementById('searchInput').value.trim();
+            
+            if (!searchTerm) {
+                document.getElementById('searchMessage').innerHTML = '';
+                loadGroup();
+                return;
+            }
+            
+            // Search in ALL livestock (including inactive)
+            const found = LIVESTOCK_DATA.filter(item => 
+                item.id.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+            
+            if (found.length > 0) {
+                // Found! Show them
+                currentGroup = 'search';
+                currentLivestock = found;
+                document.getElementById('searchMessage').innerHTML = `
+                    <div class="alert-info">✓ Found ${found.length} livestock matching "${searchTerm}"</div>
+                `;
+                renderLivestock(found);
+            } else {
+                // NOT FOUND - Show option to add
+                document.getElementById('searchMessage').innerHTML = `
+                    <div class="alert-info">
+                        ❌ Number "${searchTerm}" not found<br>
+                        <button class="btn btn-primary btn-small" onclick="addSearchedNumber()" style="margin-top: 10px;">
+                            ➕ Add "${searchTerm}" as new livestock
+                        </button>
+                    </div>
+                `;
+                document.getElementById('livestockList').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>No livestock found with number "${searchTerm}"</p>
+                    </div>
+                `;
+            }
+            
+            updateStats();
+        }
+
+        // Add the searched number
+        function addSearchedNumber() {
+            document.getElementById('newLivestockNumber').value = searchTerm;
+            showAddModal();
+        }
+
+        // Render livestock list
+        function renderLivestock(livestock) {
+            const container = document.getElementById('livestockList');
+            
+            if (livestock.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🐄</div>
+                        <p>Ga go na leruo mo setlhopheng seno<br><small>No livestock in this group</small></p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const todayAttendance = presentSetForDate(selectedDate);
+            const canEdit = !!(window.FarmData && window.FarmData.isAdmin());
+            
+            container.innerHTML = livestock.map((item, index) => {
+                const isPresent = todayAttendance[item.id] || false;
+                const itemClass = `livestock-item ${isPresent ? 'present' : ''} ${item.is_inactive ? 'inactive' : ''}`;
+                
+                let statusText = '';
+                if (item.is_inactive) {
+                    statusText = `<div class="livestock-status" style="color: #ef4444;">${item.status === 'sold' ? 'Rekisitswe (Sold)' : 'Sule (Died)'}</div>`;
+                }
+                
+                return `
+                    <div class="${itemClass}" data-livestock-id="${item.id}">
+                        <div class="livestock-info">
+                            <div class="livestock-number">${index + 1}</div>
+                            <div>
+                                <div class="livestock-name">${item.id}</div>
+                                ${statusText}
+                            </div>
+                        </div>
+                        <div class="livestock-actions" style="display: flex; gap: 8px; align-items: center;">
+                            ${!item.is_inactive ? `
+                            <button class="btn btn-primary btn-small" onclick="farmEditAnimal('${item.id}')" style="white-space: nowrap; ${canEdit ? '' : 'display:none;'}">
+                                ✏️ Edit
+                            </button>
+                            <div class="checkbox-wrapper">
+                                <input type="checkbox" 
+                                       id="check_${item.id}" 
+                                       ${isPresent ? 'checked' : ''}
+                                       onchange="toggleAttendance('${item.id}')">
+                                <label for="check_${item.id}">Teng</label>
+                            </div>
+                            <button class="btn btn-warning btn-small" onclick="quickAction('${item.id}')" style="white-space: nowrap;">
+                                + Action
+                            </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // A date's present set is the union of every key ending in that date,
+        // so a cloud-pulled tick and any local view show together.
+        function presentSetForDate(date) {
+            const set = {};
+            Object.keys(attendance).forEach(function (k) {
+                if (k.slice(-10) === date && attendance[k]) {
+                    Object.keys(attendance[k]).forEach(function (id) { if (attendance[k][id] === true) set[id] = true; });
+                }
+            });
+            return set;
+        }
+        function setPresentLocal(id, on) {
+            const date = selectedDate;
+            if (!absentTouchedByDate[date]) absentTouchedByDate[date] = {};
+            if (on) {
+                const key = `${currentGroup}_${date}`;
+                if (!attendance[key]) attendance[key] = {};
+                attendance[key][id] = true;
+                delete absentTouchedByDate[date][id];
+            } else {
+                Object.keys(attendance).forEach(function (k) {
+                    if (k.slice(-10) === date && attendance[k] && (id in attendance[k])) delete attendance[k][id];
+                });
+                absentTouchedByDate[date][id] = true; // remember the un-tick so it can be pushed
+            }
+            localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+        }
+        // Push the current day's register to the shared cloud (merge + corrections).
+        window.syncAttendanceCloud = async function (date) {
+            if (!navigator.onLine || !window.FarmData || !window.FarmData.saveAttendanceCloud) return { ok: false };
+            const present = Object.keys(presentSetForDate(date));
+            const absentIds = Object.keys(absentTouchedByDate[date] || {});
+            try {
+                const r = await window.FarmData.saveAttendanceCloud(date, present, actorName(), absentIds);
+                if (r && r.ok) absentTouchedByDate[date] = {};
+                return r;
+            } catch (e) { return { ok: false }; }
+        };
+        // Toggle attendance
+        function toggleAttendance(livestockId) {
+            const checkbox = document.getElementById(`check_${livestockId}`);
+            const on = !!(checkbox && checkbox.checked);
+            setPresentLocal(livestockId, on);
+            if (typeof db !== 'undefined') { db.saveLocalState(livestockId, on); }
+            loadGroup();
+            updateStats();
+        }
+
+        // Update stats
+        function updateStats() {
+            const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+            const total = activeLivestock.length;
+            
+            let present = 0;
+            Object.keys(attendance).forEach(key => {
+                if (key.includes(selectedDate)) {
+                    present += Object.values(attendance[key]).filter(v => v === true).length;
+                }
+            });
+            
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('presentCount').textContent = present;
+        }
+
+        // WEBHOOK CONFIGURATION - Paste your Power Automate URL here
+        const WEBHOOK_CONFIG = {
+            url: '', // PASTE YOUR POWER AUTOMATE WEBHOOK URL HERE
+            enabled: false // Set to true once you have the URL
+        };
+
+        // Save attendance
+        async function saveAttendance() {
+            if (!shepherdName) {
+                alert('Tsweetswee kwala leina la modisa!\nPlease enter shepherd name!');
+                return;
+            }
+            
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = '⏳ Boloka...';
+            
+            try {
+                // Collect all present livestock for today
+                let allPresentToday = [];
+                Object.keys(attendance).forEach(key => {
+                    if (key.includes(selectedDate)) {
+                        const present = Object.keys(attendance[key]).filter(id => attendance[key][id] === true);
+                        allPresentToday = [...new Set([...allPresentToday, ...present])];
+                    }
+                });
+                
+                // Build attendance array for webhook
+                const attendanceData = LIVESTOCK_DATA.filter(l => !l.is_inactive).map(l => ({
+                    id: l.id,
+                    group: l.group,
+                    present: allPresentToday.includes(l.id)
+                }));
+                
+                const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+                const presentCount = allPresentToday.length;
+                const absentCount = activeLivestock.length - presentCount;
+                auditLog('attendance_saved', null, presentCount + '/' + activeLivestock.length + ' present, ' + formatDate(selectedDate));
+                let cloudNote = '';
+                if (navigator.onLine && window.FarmData && window.FarmData.saveAttendanceCloud) {
+                    try {
+                        const absentIds = Object.keys(absentTouchedByDate[selectedDate] || {});
+                        const cr = await window.FarmData.saveAttendanceCloud(selectedDate, allPresentToday, shepherdName, absentIds);
+                        if (cr && cr.ok) { cloudNote = ' <span style="color:#065f46;">Synced to all phones</span>'; absentTouchedByDate[selectedDate] = {}; }
+                    } catch (e) {}
+                }
+                
+                // Save to localStorage first
+                if (typeof db !== 'undefined') {
+                    await db.saveAttendance(shepherdName, allPresentToday);
+                }
+                localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+                
+                // Send to Power Automate webhook if configured
+                if (WEBHOOK_CONFIG.enabled && WEBHOOK_CONFIG.url) {
+                    await sendToWebhook({
+                        timestamp: new Date().toISOString(),
+                        date: formatDate(selectedDate),
+                        shepherd: shepherdName,
+                        attendance: attendanceData,
+                        summary: {
+                            total: activeLivestock.length,
+                            present: presentCount,
+                            absent: absentCount,
+                            percentage: ((presentCount / activeLivestock.length) * 100).toFixed(2)
+                        },
+                        inactiveCount: LIVESTOCK_DATA.filter(l => l.is_inactive).length
+                    });
+                }
+                
+                // Email the summary via the server (Resend) - reliable, not EmailJS.
+                let emailNote = '';
+                let emailFailed = false;
+                let emailReason = '';
+                if (!navigator.onLine) {
+                    emailFailed = true; emailReason = 'No internet at the time of saving.';
+                    emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>';
+                } else if (window.FarmData && window.FarmData.notifyAttendance) {
+                    try {
+                        const r = await window.FarmData.notifyAttendance({
+                            date: formatDate(selectedDate),
+                            shepherd: shepherdName,
+                            present: presentCount,
+                            absent: absentCount,
+                            total: activeLivestock.length,
+                            percentage: ((presentCount / activeLivestock.length) * 100).toFixed(1)
+                        });
+                        if (r && r.ok && r.sent) { emailNote = ' Email sent!'; }
+                        else { emailFailed = true; emailReason = (r && (r.reason || r.error)) || 'no response'; emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>'; }
+                    } catch (e) { emailFailed = true; emailReason = 'send error'; emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>'; }
+                }
+                document.getElementById('successMessage').innerHTML = `
+                    <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!${WEBHOOK_CONFIG.enabled ? ' Synced to Excel!' : ''}${cloudNote}${emailNote}</div>
+                    ${emailFailed ? `<div class="alert-info" style="background:#fee2e2;color:#991b1b;border-color:#ef4444;margin-top:10px;text-align:left;">📧 Imeile ga e a romelwa. (Email not sent.)<br><small>${emailReason ? 'Reason: ' + emailReason : ''}</small></div>` : ''}
+                `;
+
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Boloka (Save Attendance)';
+
+                if (!emailFailed) {
+                    setTimeout(() => { document.getElementById('successMessage').innerHTML = ''; }, 3000);
+                }
+                
+            } catch (error) {
+                console.error('Save error:', error);
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Boloka (Save Attendance)';
+                alert('Error saving attendance: ' + error.message);
+            }
+        }
+        
+        // Send email notification using EmailJS
+        let lastEmailError = '';
+        async function sendEmailNotification(data) {
+            lastEmailError = '';
+            if (!EMAIL_CONFIG.enabled || !EMAIL_CONFIG.serviceID) {
+                console.log('Email notifications not configured');
+                return false;
+            }
+            
+            try {
+                const templateParams = {
+                    to_email: 'leratom2012@gmail.com, mogajaneo@yahoo.com',
+                    date: data.date,
+                    shepherd: data.shepherd,
+                    present: data.present,
+                    absent: data.absent,
+                    total: data.total,
+                    percentage: data.percentage,
+                    subject: `Dikgomo Attendance Saved - ${data.date}`
+                };
+                
+                const response = await emailjs.send(
+                    EMAIL_CONFIG.serviceID,
+                    EMAIL_CONFIG.templateID,
+                    templateParams
+                );
+                
+                console.log('✓ Email sent successfully:', response);
+                return true;
+            } catch (error) {
+                lastEmailError = (error && (error.status || error.text))
+                    ? ((error.status || '') + ' ' + (error.text || '')).trim()
+                    : ((error && error.message) || 'unknown error');
+                console.error('Email error:', error);
+                // Don't fail the save if email fails
+                return false;
+            }
+        }
+        
+        // Send data to Power Automate webhook
+        async function sendToWebhook(data) {
+            try {
+                const response = await fetch(WEBHOOK_CONFIG.url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Webhook failed: ${response.status}`);
+                }
+                
+                console.log('✓ Data sent to Power Automate successfully');
+                return true;
+            } catch (error) {
+                console.error('Webhook error:', error);
+                // Don't fail the save if webhook fails
+                return false;
+            }
+        }
+
+        // Sync data
+        async function syncData() {
+            if (!navigator.onLine) {
+                alert('⚠ No internet connection!\nGa go na Inthanete!');
+                return;
+            }
+            
+            const syncBtn = document.getElementById('syncBtn');
+            syncBtn.disabled = true;
+            syncBtn.textContent = '⏳ Syncing...';
+            
+            try {
+                if (typeof autoSync !== 'undefined') {
+                    await autoSync();
+                }
+                syncBtn.disabled = false;
+                syncBtn.textContent = '🔄 Tlhabolola (Sync Data)';
+            } catch (error) {
+                console.error('Sync error:', error);
+                syncBtn.disabled = false;
+                syncBtn.textContent = '🔄 Tlhabolola (Sync Data)';
+            }
+        }
+
+        // Add livestock modal
+        function showAddModal() {
+            document.getElementById('addModal').classList.remove('hidden');
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').classList.add('hidden');
+        }
+
+        async function submitNewLivestock() {
+            const number = document.getElementById('newLivestockNumber').value.trim();
+            if (!number) {
+                alert('Tsweetswee kwala nomoro!\nPlease enter a number!');
+                return;
+            }
+            
+            const exists = LIVESTOCK_DATA.some(l => l.id === number);
+            if (exists) {
+                alert('Nomoro e e teng!\nNumber already exists!');
+                return;
+            }
+            
+            // Determine group
+            let group = 'other';
+            if (number.startsWith('11')) group = '11';
+            else if (number.startsWith('55')) group = '55';
+            else if (number.startsWith('56')) group = '56';
+            else if (number.startsWith('58')) group = '58';
+            else if (number.startsWith('72')) group = '72';
+            
+            // ADD IMMEDIATELY to the list
+            LIVESTOCK_DATA.push({
+                id: number,
+                group: group,
+                is_inactive: false,
+                status: ''
+            });
+            
+            // Save to localStorage
+            localStorage.setItem('dikgomo_livestock', JSON.stringify(LIVESTOCK_DATA));
+            
+            alert(`✓ Eketsetsa! Added: ${number}\n\nNow visible in "View All"`);
+            closeAddModal();
+            document.getElementById('newLivestockNumber').value = '';
+            
+            // Reload if viewing all or active
+            if (currentGroup === 'all' || currentGroup === 'active') {
+                loadGroup();
+            }
+        }
+
+
+        // Filter register dropdown based on search
+        function filterRegisterDropdown() {
+            const searchTerm = document.getElementById('regSearchInput').value.toLowerCase();
+            const select = document.getElementById('regLivestockSelect');
+            const allLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+            
+            select.innerHTML = '<option value="">Kgetha nomoro...</option>';
+            
+            const filtered = allLivestock.filter(l => 
+                l.id.toLowerCase().includes(searchTerm)
+            );
+            
+            filtered.forEach(l => {
+                const option = document.createElement('option');
+                option.value = l.id;
+                option.textContent = l.id;
+                select.appendChild(option);
+            });
+        }
+
+        // Register modal
+        function showRegisterModal() {
+            const allLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive); // Show ALL active including Rikus, odd IDs
+            const select = document.getElementById('regLivestockSelect');
+            
+            // Clear search
+            document.getElementById('regSearchInput').value = '';
+            
+            select.innerHTML = '<option value="">Kgetha nomoro...</option>' +
+                allLivestock.map(l => `<option value="${l.id}">${l.id}</option>`).join('');
+            
+            document.getElementById('regDate').value = selectedDate;
+            document.getElementById('registerModal').classList.remove('hidden');
+        }
+
+        function closeRegisterModal() {
+            document.getElementById('registerModal').classList.add('hidden');
+        }
+
+        async function submitRegistration() {
+            const livestock = document.getElementById('regLivestockSelect').value;
+            const status = document.getElementById('regStatus').value;
+            const date = document.getElementById('regDate').value;
+            
+            if (!livestock || !status || !date) {
+                alert('Tsweetswee tlatsa tsohle!\nPlease fill all fields!');
+                return;
+            }
+            
+            // Find and mark as inactive
+            const item = LIVESTOCK_DATA.find(l => l.id === livestock);
+            if (item) {
+                item.is_inactive = true;
+                item.status = status;
+                item.inactive_date = date;
+                
+                // Save to localStorage
+                localStorage.setItem('dikgomo_livestock', JSON.stringify(LIVESTOCK_DATA));
+            }
+            
+            alert(`✓ Ikwadisitswe! Registered:\n\nLivestock: ${livestock}\nStatus: ${status}\nDate: ${date}`);
+            closeRegisterModal();
+            
+            // Reload to reflect changes
+            loadGroup();
+        }
+
+
+        // View Inactive modal
+        function showInactiveModal() {
+            const inactive = LIVESTOCK_DATA.filter(l => l.is_inactive);
+            const container = document.getElementById('inactiveList');
+            
+            if (inactive.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 20px;">No inactive livestock yet.</p>';
+            } else {
+                container.innerHTML = `
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f3f4f6; border-bottom: 2px solid #e5e7eb;">
+                                <th style="padding: 12px; text-align: left; font-weight: 600;">No.</th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600;">Livestock ID</th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600;">Status</th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600;">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${inactive.map((item, idx) => `
+                                <tr style="border-bottom: 1px solid #e5e7eb;">
+                                    <td style="padding: 12px;">${idx + 1}</td>
+                                    <td style="padding: 12px;"><strong>${item.id}</strong></td>
+                                    <td style="padding: 12px;">
+                                        <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; ${item.status === 'sold' ? 'background: #fef3c7; color: #92400e;' : 'background: #fee2e2; color: #991b1b;'}">
+                                            ${item.status === 'sold' ? 'Rekisitswe (Sold)' : 'Sule (Died)'}
+                                        </span>
+                                    </td>
+                                    <td style="padding: 12px;">${item.inactive_date ? formatDate(item.inactive_date) : '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+            
+            document.getElementById('inactiveModal').classList.remove('hidden');
+        }
+
+
+
+        // Download Excel Report
+        function showExcelDateModal() {
+            const sel = document.getElementById('excelDateSelect');
+            const byDate = presentByDate();
+            const dates = Object.keys(byDate).sort().reverse();
+            let opts = '<option value="all">Matsatsi otlhe (All dates)</option>';
+            dates.forEach(function (ymd) { opts += '<option value="' + ymd + '">' + formatDate(ymd) + '</option>'; });
+            sel.innerHTML = opts;
+            document.getElementById('excelModal').classList.remove('hidden');
+        }
+        function closeExcelModal() {
+            document.getElementById('excelModal').classList.add('hidden');
+        }
+        function downloadExcelReport() {
+            const monthNames = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"];
+            const now = new Date(selectedDate);
+            const monthYear = monthNames[now.getMonth()] + now.getFullYear();
+            if (document.getElementById('excelModal')) closeExcelModal();
+
+            // Build attendance data
+            const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
+            const inactiveLivestock = LIVESTOCK_DATA.filter(l => l.is_inactive);
+
+            // Present-by-date, unioned across every group for each date
+            const byDate = presentByDate();
+
+            // Which date(s) to export, from the chooser
+            const sel = document.getElementById('excelDateSelect');
+            const choice = sel ? sel.value : 'all';
+            const allDates = Object.keys(byDate).sort();
+            const sortedDates = (choice && choice !== 'all') ? [choice] : allDates;
+            const fileLabel = (choice && choice !== 'all') ? choice : monthYear;
+            
+            // Create Excel HTML format with color coding
+            let excelHTML = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        .present { background-color: #d1fae5; color: #065f46; font-weight: bold; }
+                        .absent { background-color: #fee2e2; color: #991b1b; font-weight: bold; }
+                        .header { background-color: #1e3a8a; color: white; font-weight: bold; text-align: center; }
+                        .summary { background-color: #f3f4f6; font-weight: bold; }
+                        .inactive-sold { background-color: #fef3c7; color: #92400e; }
+                        .inactive-died { background-color: #fee2e2; color: #991b1b; }
+                    </style>
+                </head>
+                <body>
+            `;
+            
+            // SHEET 1: ATTENDANCE DATA
+            excelHTML += '<div style="page-break-after: always;">';
+            excelHTML += '<h2>Dikgomo Attendance Report - ' + monthYear + '</h2>';
+            excelHTML += '<p>Generated: ' + formatDate(new Date().toISOString().split('T')[0]) + '</p>';
+            excelHTML += '<p>Shepherd: ' + (shepherdName || 'Not specified') + '</p><br>';
+            
+            excelHTML += '<table border="1" cellspacing="0" cellpadding="5">';
+            excelHTML += '<tr class="header">';
+            excelHTML += '<th>No.</th><th>Livestock ID</th><th>Group</th>';
+            
+            sortedDates.forEach(date => {
+                excelHTML += '<th>' + formatDate(date) + '</th>';
+            });
+            
+            excelHTML += '</tr>';
+            
+            // Build rows with color coding
+            activeLivestock.forEach((item, index) => {
+                excelHTML += '<tr>';
+                excelHTML += '<td>' + (index + 1) + '</td>';
+                excelHTML += '<td><strong>' + item.id + '</strong></td>';
+                excelHTML += '<td>' + item.group + '</td>';
+                
+                sortedDates.forEach(date => {
+                    const isPresent = (byDate[date] && byDate[date][item.id]) || false;
+                    const cellClass = isPresent ? 'present' : 'absent';
+                    const cellText = isPresent ? '✓ Present' : '✗ Absent';
+                    
+                    excelHTML += '<td class="' + cellClass + '">' + cellText + '</td>';
+                });
+                
+                excelHTML += '</tr>';
+            });
+            
+            excelHTML += '</table><br><br>';
+            
+            // Summary section
+            excelHTML += '<h3>Summary</h3>';
+            excelHTML += '<table border="1" cellspacing="0" cellpadding="5">';
+            excelHTML += '<tr class="header"><th>Date</th><th>Present</th><th>Absent</th><th>Total</th><th>%</th></tr>';
+            
+            sortedDates.forEach(date => {
+                const presentCount = byDate[date] ? Object.keys(byDate[date]).length : 0;
+                const absentCount = activeLivestock.length - presentCount;
+                const percentage = ((presentCount / activeLivestock.length) * 100).toFixed(1);
+                
+                excelHTML += '<tr class="summary">';
+                excelHTML += '<td>' + formatDate(date) + '</td>';
+                excelHTML += '<td class="present">' + presentCount + '</td>';
+                excelHTML += '<td class="absent">' + absentCount + '</td>';
+                excelHTML += '<td>' + activeLivestock.length + '</td>';
+                excelHTML += '<td>' + percentage + '%</td>';
+                excelHTML += '</tr>';
+            });
+            
+            excelHTML += '</table>';
+            excelHTML += '</div>';
+            
+            // SHEET 2: INACTIVE LIVESTOCK
+            excelHTML += '<div style="page-break-before: always;">';
+            excelHTML += '<h2>Inactive Livestock (Sold/Died)</h2>';
+            excelHTML += '<p>Total Inactive: ' + inactiveLivestock.length + '</p><br>';
+            
+            excelHTML += '<table border="1" cellspacing="0" cellpadding="5">';
+            excelHTML += '<tr class="header">';
+            excelHTML += '<th>No.</th><th>Livestock ID</th><th>Group</th><th>Status</th><th>Date</th></tr>';
+            
+            inactiveLivestock.forEach((item, index) => {
+                const statusClass = item.status === 'sold' ? 'inactive-sold' : 'inactive-died';
+                const statusText = item.status === 'sold' ? 'Rekisitswe (Sold)' : 'Sule (Died)';
+                
+                excelHTML += '<tr>';
+                excelHTML += '<td>' + (index + 1) + '</td>';
+                excelHTML += '<td><strong>' + item.id + '</strong></td>';
+                excelHTML += '<td>' + item.group + '</td>';
+                excelHTML += '<td class="' + statusClass + '">' + statusText + '</td>';
+                excelHTML += '<td>' + (item.inactive_date ? formatDate(item.inactive_date) : 'N/A') + '</td>';
+                excelHTML += '</tr>';
+            });
+            
+            if (inactiveLivestock.length === 0) {
+                excelHTML += '<tr><td colspan="5" style="text-align: center; color: #6b7280;">No inactive livestock</td></tr>';
+            }
+            
+            excelHTML += '</table>';
+            excelHTML += '</div>';
+            
+            excelHTML += '</body></html>';
+            
+            // Create downloadable file
+            const blob = new Blob([excelHTML], { type: 'application/vnd.ms-excel' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Dikgomo_Attendance_${fileLabel}.xls`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            alert(`✓ Downloaded!\n\nFile: Dikgomo_Attendance_${fileLabel}.xls\n\n✅ Green = Present\n❌ Red = Absent\n\nIncludes 2 sheets:\n1. Attendance (color-coded)\n2. Inactive Livestock\n\nYou can now upload to OneDrive!`);
+        }
+
+        // Edit livestock number
+        function editLivestock(livestockId) {
+            const newNumber = prompt(`Edit Livestock Number\n\nCurrent: ${livestockId}\nEnter new number:`);
+            if (!newNumber || newNumber === livestockId) return;
+            
+            // Check if new number already exists
+            const exists = LIVESTOCK_DATA.some(l => l.id === newNumber && l.id !== livestockId);
+            if (exists) {
+                alert('Number already exists!');
+                return;
+            }
+            
+            // Update the number
+            const item = LIVESTOCK_DATA.find(l => l.id === livestockId);
+            if (item) {
+                item.id = newNumber;
+                localStorage.setItem('dikgomo_livestock', JSON.stringify(LIVESTOCK_DATA));
+                alert(`✓ Updated: ${livestockId} → ${newNumber}`);
+                loadGroup();
+            }
+        }
+
+        // Quick action - opens action modal
+        function quickAction(livestockId) {
+            switchTab('actions');
+        }
+
+        function closeInactiveModal() {
+            document.getElementById('inactiveModal').classList.add('hidden');
+        }
+
+        // Online/offline status
+        function updateOnlineStatus() {
+            const indicator = document.getElementById('syncIndicator');
+            if (navigator.onLine) {
+                indicator.className = 'sync-indicator online';
+                indicator.textContent = '✓ Online';
+            } else {
+                indicator.className = 'sync-indicator offline';
+                indicator.textContent = '⚠ Offline';
+            }
+        }
+
+        // ---- Download the Master workbook (history + a tab per recorded date) ----
+        async function ensureExcelJS() {
+            if (window.ExcelJS) return;
+            await new Promise(function (resolve, reject) {
+                const sc = document.createElement('script');
+                sc.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+                sc.onload = resolve; sc.onerror = function () { reject(new Error('lib')); };
+                document.head.appendChild(sc);
+            });
+        }
+        function ymdToDmy(ymd) { const p = ymd.split('-'); return p.length === 3 ? (p[2] + '-' + p[1] + '-' + p[0]) : ymd; }
+        function presentByDate() {
+            const map = {};
+            Object.keys(attendance).forEach(function (k) {
+                const ymd = k.slice(-10);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+                if (!map[ymd]) map[ymd] = {};
+                Object.keys(attendance[k]).forEach(function (id) { if (attendance[k][id] === true) map[ymd][id] = true; });
+            });
+            return map;
+        }
+        function statusFill(cell, text) {
+            const t = String(text == null ? '' : text).trim().toLowerCase();
+            let bg = null, fg = 'FF000000';
+            if (t === 'present' || t === 'teng') { bg = 'FF00B050'; fg = 'FFFFFFFF'; }
+            else if (t === 'absent' || t === 'seyo' || t === 'gone') { bg = 'FFFF0000'; fg = 'FFFFFFFF'; }
+            else if (t === 'sick' || t === 'bolwetse') { bg = 'FFFFC000'; fg = 'FF000000'; }
+            else if (t === 'dead' || t === 'sule' || t === 'died') { bg = 'FF808080'; fg = 'FFFFFFFF'; }
+            else return; // leave blanks / unknown uncoloured
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+            cell.font = { color: { argb: fg }, bold: true };
+            cell.alignment = { horizontal: 'center' };
+        }
+        function colourDateSheet(ws) {
+            const a1 = ws.getCell(1, 1).value, b1 = ws.getCell(1, 2).value;
+            if (String(a1 == null ? '' : a1).trim() !== 'Tag No' || String(b1 == null ? '' : b1).trim() !== 'Status') return;
+            ws.getCell(1, 1).font = { bold: true };
+            ws.getCell(1, 2).font = { bold: true };
+            const last = ws.rowCount;
+            for (let r = 2; r <= last; r++) {
+                statusFill(ws.getCell(r, 2), ws.getCell(r, 2).value);
+            }
+            ws.getColumn(1).width = 14;
+            ws.getColumn(2).width = 12;
+        }
+        async function downloadMaster() {
+            try { await ensureExcelJS(); }
+            catch (e) { alert('Could not load the spreadsheet tool. Check your connection and try again.'); return; }
+            const wb = new ExcelJS.Workbook();
+            let haveBase = false;
+            try {
+                const resp = await fetch('master_stock.xlsx', { cache: 'no-store' });
+                if (resp.ok) { await wb.xlsx.load(await resp.arrayBuffer()); haveBase = true; }
+            } catch (e) { haveBase = false; }
+            if (!haveBase) {
+                const ws = wb.addWorksheet('Dikgomo Master');
+                ws.addRow(['Tag No', 'Group', 'Status']);
+                ws.getRow(1).font = { bold: true };
+                LIVESTOCK_DATA.forEach(function (l) { ws.addRow([l.id, l.group, l.is_inactive ? 'Inactive' : 'Active']); });
+            }
+            const existing = {};
+            wb.eachSheet(function (ws) { existing[ws.name] = true; });
+            const byDate = presentByDate();
+            const activeIds = LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; }).map(function (l) { return l.id; });
+            let added = 0;
+            Object.keys(byDate).sort().forEach(function (ymd) {
+                const sheetName = ymdToDmy(ymd).slice(0, 31);
+                if (existing[sheetName]) return;
+                const present = byDate[ymd];
+                const ws = wb.addWorksheet(sheetName);
+                ws.addRow(['Tag No', 'Status']);
+                activeIds.forEach(function (id) { ws.addRow([id, present[id] ? 'Present' : 'Absent']); });
+                existing[sheetName] = true; added++;
+            });
+            wb.eachSheet(function (ws) { try { colourDateSheet(ws); } catch (e) {} });
+            const buf = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const today = new Date().toISOString().split('T')[0];
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'Dikgomo_Master_' + today + '.xlsx';
+            document.body.appendChild(a); a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+            setTimeout(function () {
+                alert(added > 0 ? ('Master downloaded with ' + added + ' new date tab(s), colour coded.') : 'Master downloaded, colour coded.');
+            }, 200);
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+    
+    <!-- Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .catch(err => console.log('SW registration failed'));
+        }
+    </script>
+    <script src="supabase-data.js"></script>
+    <script src="owner-ui.js"></script>
+</body>
+</html>
