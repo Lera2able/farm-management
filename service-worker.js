@@ -1,7 +1,7 @@
-// Service Worker - network-first so new commits reach devices as soon as
-// they are online, while still working offline from the last good copy.
-const CACHE_NAME = 'dikgomo-v4';
-const CORE = ['./', './index.html', './manifest.json', './supabase-data.js', './owner-ui.js'];
+// Service Worker - network-first so new commits reach devices as soon as they
+// are online, while still working offline from the last good copy.
+const CACHE_NAME = 'dikgomo-v5';
+const CORE = ['./', './index.html', './app.html', './manifest.json', './supabase-data.js', './owner-ui.js'];
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
@@ -29,7 +29,7 @@ self.addEventListener('fetch', (event) => {
     // Let cross-origin requests (CDNs, Supabase, EmailJS) go straight to the network.
     if (url.origin !== self.location.origin) return;
 
-    // Network-first: always try to fetch the freshest file; fall back to cache offline.
+    // Network-first: try the freshest file; fall back to cache when offline.
     event.respondWith(
         fetch(req)
             .then((res) => {
@@ -40,7 +40,13 @@ self.addEventListener('fetch', (event) => {
                 return res;
             })
             .catch(() =>
-                caches.match(req).then((hit) => hit || caches.match('./index.html'))
+                caches.match(req).then((hit) =>
+                    hit ||
+                    // for an uncached navigation, serve the register, then the home page
+                    (req.mode === 'navigate'
+                        ? caches.match('./app.html').then((a) => a || caches.match('./index.html'))
+                        : undefined)
+                )
             )
     );
 });

@@ -2718,6 +2718,8 @@
         let currentLivestock = [];
         let attendance = {};
         let absentTouchedByDate = {}; // date -> { id:true } for tags explicitly UNticked (so corrections sync)
+        let pendingDates = {};   // dates with un-synced attendance (offline-safe queue)
+        let pendingHealth = {};  // animals with un-synced sick/dead state
         let shepherdName = '';
         let selectedDate = '';
         let searchTerm = '';
@@ -2819,6 +2821,8 @@
             refreshHerdFromCloud();
             updateActionsVisibility();
             loadSickDead();
+            loadPending();
+            if (navigator.onLine) flushPending();
             pullHealth();
             pullAttendance(selectedDate);
         }
@@ -2939,28 +2943,88 @@
             try { const u = (window.FarmData && window.FarmData.getUser) ? window.FarmData.getUser() : null; return (u && u.name) ? u.name : (shepherdName || 'Modisa'); }
             catch (e) { return shepherdName || 'Modisa'; }
         }
-        // Pull the shared register for a date from the cloud and show it on this phone.
+        // ---- offline-safe sync queue: never lose local work when signal returns ----
+        function loadPending() {
+            try { pendingDates = JSON.parse(localStorage.getItem('dikgomo_pending_dates') || '{}') || {}; } catch (e) { pendingDates = {}; }
+            try { pendingHealth = JSON.parse(localStorage.getItem('dikgomo_pending_health') || '{}') || {}; } catch (e) { pendingHealth = {}; }
+        }
+        function savePendingDates() { localStorage.setItem('dikgomo_pending_dates', JSON.stringify(pendingDates)); }
+        function savePendingHealth() { localStorage.setItem('dikgomo_pending_health', JSON.stringify(pendingHealth)); }
+        function markDateDirty(date) { pendingDates[date] = true; savePendingDates(); }
+        function markHealthDirty(id) { pendingHealth[id] = true; savePendingHealth(); }
+
+        // Push one day's register up (server merges + applies corrections). Clears the
+        // dirty flag only on success, so a failed push keeps the data queued.
+        async function pushAttendance(date) {
+            if (!navigator.onLine || !window.FarmData || !window.FarmData.saveAttendanceCloud) return { ok: false, offline: true };
+            const present = Object.keys(presentSetForDate(date));
+            const absentIds = Object.keys(absentTouchedByDate[date] || {});
+            try {
+                const r = await window.FarmData.saveAttendanceCloud(date, present, actorName(), absentIds);
+                if (r && r.ok) { delete pendingDates[date]; savePendingDates(); absentTouchedByDate[date] = {}; }
+                return r || { ok: false };
+            } catch (e) { return { ok: false }; }
+        }
+        window.syncAttendanceCloud = pushAttendance; // scan/voice still call this name
+
+        // Pull the shared register for a date. SAFETY RULE: never overwrite un-synced
+        // local work. If this phone has pending ticks for the day, push them up FIRST
+        // and only refresh from the cloud once that has actually succeeded.
+        function applyCloudRow(date, row) {
+            const ids = (row && Array.isArray(row.present_ids)) ? row.present_ids : [];
+            Object.keys(attendance).forEach(function (k) { if (k.slice(-10) === date) delete attendance[k]; });
+            absentTouchedByDate[date] = {};
+            const obj = {}; ids.forEach(function (id) { obj[String(id)] = true; });
+            attendance['cloud_' + date] = obj;
+            localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+            if (typeof loadGroup === 'function') loadGroup();
+            if (typeof updateStats === 'function') updateStats();
+        }
+        function rowForDate(res, date) {
+            if (!res || !res.ok || !Array.isArray(res.rows) || !res.rows.length) return null;
+            return res.rows.filter(function (r) { return r.date === date; })[0] || null;
+        }
+        // Pull the shared register for a date. SAFETY: this NEVER overwrites local
+        // ticks the cloud is missing. If this phone holds tags not yet in the cloud
+        // (queued, or left over from before), it pushes them up first (server merges),
+        // then applies the merged result. A failed push leaves local untouched.
         async function pullAttendance(date) {
             if (!window.FarmData || !navigator.onLine || !window.FarmData.getAttendanceCloud) return;
             try {
+                const localIds = Object.keys(presentSetForDate(date));
                 const res = await window.FarmData.getAttendanceCloud(date);
-                if (res && res.ok && Array.isArray(res.rows) && res.rows.length) {
-                    const row = res.rows.filter(function (r) { return r.date === date; })[0] || res.rows[0];
-                    const ids = Array.isArray(row.present_ids) ? row.present_ids : [];
-                    Object.keys(attendance).forEach(function (k) { if (k.slice(-10) === date) delete attendance[k]; });
-                    absentTouchedByDate[date] = {};
-                    const obj = {}; ids.forEach(function (id) { obj[String(id)] = true; });
-                    attendance['cloud_' + date] = obj;
-                    localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
-                    if (typeof loadGroup === 'function') loadGroup();
-                    if (typeof updateStats === 'function') updateStats();
+                const row = rowForDate(res, date);
+                const cloudSet = new Set((row && Array.isArray(row.present_ids)) ? row.present_ids.map(String) : []);
+                const localOnly = localIds.filter(function (id) { return !cloudSet.has(String(id)); });
+                const mustPush = !!pendingDates[date] || localOnly.length > 0;
+                if (mustPush) {
+                    const pr = await pushAttendance(date);
+                    if (!pr || !pr.ok) return; // keep local, never overwrite on a failed push
+                    applyCloudRow(date, rowForDate(await window.FarmData.getAttendanceCloud(date), date));
+                } else if (row) {
+                    applyCloudRow(date, row);
                 }
             } catch (e) { console.log('pullAttendance skipped:', e.message); }
         }
-        // Pull the shared sick/dead lists from the cloud.
+
+        async function pushHealthOne(id) {
+            if (!navigator.onLine || !window.FarmData || !window.FarmData.setHealthCloud) return { ok: false };
+            try {
+                const r = await window.FarmData.setHealthCloud(id, !!sickSet[id], !!deadSet[id], actorName());
+                if (r && r.ok) { delete pendingHealth[id]; savePendingHealth(); }
+                return r || { ok: false };
+            } catch (e) { return { ok: false }; }
+        }
+        function pushHealth(id) { markHealthDirty(id); if (navigator.onLine) pushHealthOne(id); }
+
+        // Pull shared sick/dead lists. Push any pending local changes first; only
+        // replace local state if nothing is still waiting to sync.
         async function pullHealth() {
             if (!window.FarmData || !navigator.onLine || !window.FarmData.getHealthCloud) return;
             try {
+                const pend = Object.keys(pendingHealth);
+                for (let i = 0; i < pend.length; i++) { await pushHealthOne(pend[i]); }
+                if (Object.keys(pendingHealth).length) return; // still un-synced -> don't overwrite
                 const res = await window.FarmData.getHealthCloud();
                 if (res && res.ok && Array.isArray(res.rows)) {
                     const sk = {}, dd = {};
@@ -2969,10 +3033,18 @@
                 }
             } catch (e) { console.log('pullHealth skipped:', e.message); }
         }
-        function pushHealth(id) {
-            if (!window.FarmData || !navigator.onLine || !window.FarmData.setHealthCloud) return;
-            try { window.FarmData.setHealthCloud(id, !!sickSet[id], !!deadSet[id], actorName()); } catch (e) {}
+
+        // When the phone regains signal, push everything queued, then refresh.
+        async function flushPending() {
+            if (!navigator.onLine || !window.FarmData) return;
+            const dates = Object.keys(pendingDates);
+            for (let i = 0; i < dates.length; i++) { await pushAttendance(dates[i]); }
+            const ids = Object.keys(pendingHealth);
+            for (let i = 0; i < ids.length; i++) { await pushHealthOne(ids[i]); }
         }
+        window.addEventListener('online', function () {
+            flushPending().then(function () { pullAttendance(selectedDate); pullHealth(); }).catch(function () {});
+        });
 
         // ---- Stats / Dipalopalo (owner, under Actions) - source: master workbook + local ----
         let statsCache = null;
@@ -3367,18 +3439,9 @@
                 absentTouchedByDate[date][id] = true; // remember the un-tick so it can be pushed
             }
             localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+            markDateDirty(date); // queue for sync; never lost, even offline
         }
-        // Push the current day's register to the shared cloud (merge + corrections).
-        window.syncAttendanceCloud = async function (date) {
-            if (!navigator.onLine || !window.FarmData || !window.FarmData.saveAttendanceCloud) return { ok: false };
-            const present = Object.keys(presentSetForDate(date));
-            const absentIds = Object.keys(absentTouchedByDate[date] || {});
-            try {
-                const r = await window.FarmData.saveAttendanceCloud(date, present, actorName(), absentIds);
-                if (r && r.ok) absentTouchedByDate[date] = {};
-                return r;
-            } catch (e) { return { ok: false }; }
-        };
+        // (syncAttendanceCloud is defined above as pushAttendance, offline-safe.)
         // Toggle attendance
         function toggleAttendance(livestockId) {
             const checkbox = document.getElementById(`check_${livestockId}`);
@@ -3443,13 +3506,11 @@
                 const presentCount = allPresentToday.length;
                 const absentCount = activeLivestock.length - presentCount;
                 auditLog('attendance_saved', null, presentCount + '/' + activeLivestock.length + ' present, ' + formatDate(selectedDate));
-                let cloudNote = '';
+                markDateDirty(selectedDate);
+                let cloudNote = ' <span style="color:#92400e;">E bolokilwe mo founong, e tla romelwa fa o le inthaneteng. (Saved on this phone, will sync when online.)</span>';
                 if (navigator.onLine && window.FarmData && window.FarmData.saveAttendanceCloud) {
-                    try {
-                        const absentIds = Object.keys(absentTouchedByDate[selectedDate] || {});
-                        const cr = await window.FarmData.saveAttendanceCloud(selectedDate, allPresentToday, shepherdName, absentIds);
-                        if (cr && cr.ok) { cloudNote = ' <span style="color:#065f46;">Synced to all phones</span>'; absentTouchedByDate[selectedDate] = {}; }
-                    } catch (e) {}
+                    const cr = await pushAttendance(selectedDate);
+                    if (cr && cr.ok) cloudNote = ' <span style="color:#065f46;">Di romilwe go difounu tsotlhe. (Synced to all phones.)</span>';
                 }
                 
                 // Save to localStorage first
