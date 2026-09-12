@@ -1,6 +1,6 @@
 // Service Worker - network-first so new commits reach devices as soon as they
 // are online, while still working offline from the last good copy.
-const CACHE_NAME = 'dikgomo-v7';
+const CACHE_NAME = 'dikgomo-v8';
 const CORE = [
   './',
   './index.html',
@@ -10,6 +10,9 @@ const CORE = [
   './owner-ui.js',
   './master_stock.xlsx',
   './icon.svg',
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {
