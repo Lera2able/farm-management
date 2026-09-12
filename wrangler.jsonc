@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "khumotaka-farming",
+  "account_id": "e1634d61290c9b92907e2d1012a684c7",
+  "main": "./worker/index.js",
+  "compatibility_date": "2026-09-12",
+  "observability": {
+    "enabled": true
+  },
+  "routes": [
+    {
+      "pattern": "khumotaka.co.za/*",
+      "zone_name": "khumotaka.co.za"
+    },
+    {
+      "pattern": "www.khumotaka.co.za/*",
+      "zone_name": "khumotaka.co.za"
+    }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}

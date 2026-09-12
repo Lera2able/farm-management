@@ -1,0 +1,27 @@
+{
+  "name": "farm-management",
+  "version": "1.0.0",
+  "description": "A mobile-first Progressive Web App for tracking livestock attendance offline with automatic sync to Google Sheets and email notifications.",
+  "private": true,
+  "main": "app.js",
+  "scripts": {
+    "build:cloudflare": "node scripts/build-cloudflare.mjs",
+    "deploy:cloudflare": "npm run build:cloudflare && wrangler deploy",
+    "cf:whoami": "wrangler whoami",
+    "test": "echo \"No tests configured\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lera2able/farm-management.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Lera2able/farm-management/issues"
+  },
+  "homepage": "https://github.com/Lera2able/farm-management#readme",
+  "devDependencies": {
+    "wrangler": "^4.131.1"
+  }
+}
