@@ -24,6 +24,7 @@ serve(async (req) => {
     const absent = Number(body.absent ?? 0);
     const total = Number(body.total ?? 0);
     const percentage = String(body.percentage ?? "");
+    const comment = String(body.comment ?? "").trim();
 
     const text = [
       "Khumotaka attendance summary",
@@ -33,6 +34,7 @@ serve(async (req) => {
       `Absent: ${absent}`,
       `Total active: ${total}`,
       `Attendance: ${percentage}%`,
+      ...(comment ? [`Comment: ${comment}`] : []),
     ].join("\n");
 
     const html = `
@@ -45,6 +47,7 @@ serve(async (req) => {
           <tr><td><b>Absent</b></td><td>${absent}</td></tr>
           <tr><td><b>Total active</b></td><td>${total}</td></tr>
           <tr><td><b>Attendance</b></td><td>${percentage}%</td></tr>
+          ${comment ? `<tr><td><b>Comment</b></td><td>${comment}</td></tr>` : ""}
         </table>
       </div>
     `;

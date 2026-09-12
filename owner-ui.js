@@ -35,14 +35,21 @@
         align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;
         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
       .ow-overlay.ow-hidden{display:none}
-      .ow-card{background:#fff;border-radius:12px;max-width:460px;width:100%;padding:24px;
+      .ow-card{background:#fff;border-radius:16px;max-width:900px;width:100%;padding:24px;
         box-shadow:0 10px 40px rgba(0,0,0,.3);margin:auto;color:#1f2937}
       .ow-card h2{font-size:20px;margin:0 0 6px;color:#1f2937}
       .ow-card p{color:#6b7280;font-size:14px;margin:0 0 14px}
       .ow-x{float:right;font-size:28px;line-height:1;color:#9ca3af;cursor:pointer;font-weight:700}
       .ow-x:active{color:#1f2937}
-      .ow-section{border-top:1px solid #e5e7eb;margin-top:20px;padding-top:16px}
-      .ow-section h3{color:#059669;font-size:16px;margin:0 0 12px}
+      .ow-panel-shell{display:flex;flex-direction:column;gap:16px}
+      .ow-banner{background:linear-gradient(135deg,#ecfdf5,#eff6ff);border:1px solid #d1fae5;border-radius:14px;padding:16px 18px}
+      .ow-banner h2{margin:0 0 4px}
+      .ow-section{border:1px solid #e5e7eb;border-radius:14px;padding:16px;background:#fff;margin:0}
+      .ow-grid{display:grid;gap:16px}
+      .ow-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .ow-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .ow-section h3{color:#059669;font-size:16px;margin:0 0 6px}
+      .ow-section p{margin:0 0 12px}
       .ow-field{margin-bottom:12px}
       .ow-field label{display:block;font-weight:600;font-size:14px;margin-bottom:5px;color:#374151}
       .ow-input{width:100%;padding:12px;font-size:16px;border:1px solid #d1d5db;border-radius:8px;
@@ -71,6 +78,8 @@
       .ow-pill{font-size:11px;padding:2px 8px;border-radius:10px;background:#e5e7eb;color:#374151;margin-left:8px}
       .ow-pill.super2{background:#fde68a;color:#92400e}
       .ow-del{background:#ef4444;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer}
+      .ow-inline-help{font-size:12px;color:#6b7280;margin-top:-4px;margin-bottom:10px}
+      @media (max-width:700px){.ow-grid-2,.ow-grid-3{grid-template-columns:1fr}.ow-card{padding:18px}}
       #ocrBtn{position:fixed;left:12px;bottom:60px;z-index:1500;background:#3b82f6;color:#fff;border:none;border-radius:24px;padding:10px 16px;font-size:14px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;align-items:center;gap:6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
       #ocrBtn:active{transform:scale(.97)}
       .ocr-st{font-weight:700;padding:0 6px;white-space:nowrap}
@@ -109,56 +118,76 @@
 
         <div id="owPanel" style="display:none">
           <span style="float:right"><button class="ow-btn ow-btn-grey" id="owLock" style="width:auto">🔒 Tswala</button></span>
-          <h2 id="owHello">Mong</h2>
+          <div class="ow-panel-shell">
+            <div class="ow-banner">
+              <h2 id="owHello">Mong</h2>
+              <p>Laola lotso, ngwadisa diphetogo, le tlhokomela akhaonto tsotlhe mo lefelong le le lengwe. Manage lineage, animal records, and accounts from one place.</p>
+            </div>
 
-          <div class="ow-section">
-            <h3>Tlhabolola Lotso (Edit lineage)</h3>
-            <div class="ow-field">
-              <label for="linPick">Kgetha kgomo (Choose animal)</label>
-              <input list="owHerd" id="linPick" class="ow-input" placeholder="Nomoro ya kgomo">
-            </div>
-            <div id="linMeta" class="ow-meta"></div>
-            <div class="ow-field"><label for="linMma">Mma (Mother)</label><input list="owHerd" id="linMma" class="ow-input" placeholder="Nomoro ya ga mmagwe"></div>
-            <div class="ow-field"><label for="linRre">Rre (Father)</label><input list="owHerd" id="linRre" class="ow-input" placeholder="Nomoro ya ga rragwe"></div>
-            <div class="ow-field"><label for="linSex">Bong (Sex)</label>
-              <select id="linSex" class="ow-input"><option value="">--</option><option value="M">Poo (M)</option><option value="F">Tshegadi (F)</option></select>
-            </div>
-            <div class="ow-field"><label for="linDob">Letlha la matsalo (Date of birth)</label><input type="date" id="linDob" class="ow-input"></div>
-            <button class="ow-btn" id="linSave">Boloka Lotso</button>
-            <div class="ow-msg" id="linMsg"></div>
+            <div class="ow-grid ow-grid-2">
+              <div class="ow-section">
+                <h3>Tlhabolola Lotso (Edit lineage)</h3>
+                <p>Kgetha nomoro, mme o tsenye mma le rre mo mabokosong a a gaufi le yone.</p>
+                <div class="ow-grid ow-grid-3">
+                  <div class="ow-field">
+                    <label for="linPick">Nomoro (Animal number)</label>
+                    <input list="owHerd" id="linPick" class="ow-input" placeholder="Nomoro ya kgomo">
+                  </div>
+                  <div class="ow-field"><label for="linMma">Mma (Mother)</label><input list="owHerd" id="linMma" class="ow-input" placeholder="Nomoro ya ga mmagwe"></div>
+                  <div class="ow-field"><label for="linRre">Rre (Father)</label><input list="owHerd" id="linRre" class="ow-input" placeholder="Nomoro ya ga rragwe"></div>
+                </div>
+                <div id="linMeta" class="ow-meta"></div>
+                <div class="ow-grid ow-grid-2">
+                  <div class="ow-field"><label for="linSex">Bong (Sex)</label>
+                    <select id="linSex" class="ow-input"><option value="">--</option><option value="M">Poo (M)</option><option value="F">Tshegadi (F)</option></select>
+                  </div>
+                  <div class="ow-field"><label for="linDob">Letlha la matsalo (Date of birth)</label><input type="date" id="linDob" class="ow-input"></div>
+                </div>
+                <button class="ow-btn" id="linSave">Boloka Lotso</button>
+                <div class="ow-msg" id="linMsg"></div>
 
-            <div class="ow-field" style="margin-top:16px">
-              <label for="cmtBox">Dikakanyo (Comment / note)</label>
-              <textarea id="cmtBox" class="ow-input" rows="2" placeholder="Kwala kakanyo ka kgomo e..."></textarea>
-            </div>
-            <button class="ow-btn ow-btn-grey" id="cmtAdd">Engadisa Kakanyo (Add comment)</button>
-            <div class="ow-msg" id="cmtMsg"></div>
-            <div id="cmtList" class="ow-comments"></div>
-          </div>
+                <div class="ow-field" style="margin-top:16px">
+                  <label for="cmtBox">Dikakanyo (Comment / note)</label>
+                  <textarea id="cmtBox" class="ow-input" rows="2" placeholder="Kwala kakanyo ka kgomo e..."></textarea>
+                </div>
+                <button class="ow-btn ow-btn-grey" id="cmtAdd">Engadisa Kakanyo (Add comment)</button>
+                <div class="ow-msg" id="cmtMsg"></div>
+                <div id="cmtList" class="ow-comments"></div>
+              </div>
 
-          <div class="ow-section">
-            <h3>Kwadisa Namane e Ntšhwa (Register new calf)</h3>
-            <div class="ow-field"><label for="calfId">Nomoro (Tag number)</label><input type="text" id="calfId" class="ow-input" placeholder="P.f. 11272"></div>
-            <div class="ow-field"><label for="calfMma">Mma (Mother)</label><input list="owHerd" id="calfMma" class="ow-input" placeholder="Nomoro ya ga mmagwe"></div>
-            <div class="ow-field"><label for="calfRre">Rre (Father)</label><input list="owHerd" id="calfRre" class="ow-input" placeholder="Nomoro ya ga rragwe"></div>
-            <div class="ow-field"><label for="calfSex">Bong (Sex)</label>
-              <select id="calfSex" class="ow-input"><option value="">--</option><option value="M">Poo (M)</option><option value="F">Tshegadi (F)</option></select>
+              <div class="ow-section">
+                <h3>Kwadisa Namane e Ntšhwa (Register new calf)</h3>
+                <p>Tsenya nomoro ya namane, mme o kwale mma le rre mo mabokosong a a gaufi.</p>
+                <div class="ow-grid ow-grid-3">
+                  <div class="ow-field"><label for="calfId">Nomoro (Tag number)</label><input type="text" id="calfId" class="ow-input" placeholder="P.f. 11272"></div>
+                  <div class="ow-field"><label for="calfMma">Mma (Mother)</label><input list="owHerd" id="calfMma" class="ow-input" placeholder="Nomoro ya ga mmagwe"></div>
+                  <div class="ow-field"><label for="calfRre">Rre (Father)</label><input list="owHerd" id="calfRre" class="ow-input" placeholder="Nomoro ya ga rragwe"></div>
+                </div>
+                <div class="ow-grid ow-grid-2">
+                  <div class="ow-field"><label for="calfSex">Bong (Sex)</label>
+                    <select id="calfSex" class="ow-input"><option value="">--</option><option value="M">Poo (M)</option><option value="F">Tshegadi (F)</option></select>
+                  </div>
+                  <div class="ow-field"><label for="calfDob">Letlha la matsalo (Date of birth)</label><input type="date" id="calfDob" class="ow-input"></div>
+                </div>
+                <button class="ow-btn" id="calfSave">Kwadisa Namane</button>
+                <div class="ow-msg" id="calfMsg"></div>
+              </div>
             </div>
-            <div class="ow-field"><label for="calfDob">Letlha la matsalo (Date of birth)</label><input type="date" id="calfDob" class="ow-input"></div>
-            <button class="ow-btn" id="calfSave">Kwadisa Namane</button>
-            <div class="ow-msg" id="calfMsg"></div>
-          </div>
 
-          <div class="ow-section" id="owAccounts" style="display:none">
-            <h3>Di-akhaonto (Accounts)</h3>
-            <div id="owUserList" class="ow-list"></div>
-            <div class="ow-field"><label for="auName">Leina (Name)</label><input id="auName" class="ow-input" placeholder="P.f. Thabo"></div>
-            <div class="ow-field"><label for="auPass">Password</label><input id="auPass" class="ow-input" type="text" placeholder="Password e ntšhwa"></div>
-            <div class="ow-field"><label for="auRole">Karolo (Role)</label>
-              <select id="auRole" class="ow-input"><option value="super">Super (edit only)</option><option value="supersuper">Supersuper (manage accounts)</option></select>
+            <div class="ow-section" id="owAccounts" style="display:none">
+              <h3>Di-akhaonto (Accounts)</h3>
+              <p>Tlhama kgotsa tlosa batho ba ba ka tsenang mo admin.</p>
+              <div id="owUserList" class="ow-list"></div>
+              <div class="ow-grid ow-grid-3">
+                <div class="ow-field"><label for="auName">Leina (Name)</label><input id="auName" class="ow-input" placeholder="P.f. Thabo"></div>
+                <div class="ow-field"><label for="auPass">Password</label><input id="auPass" class="ow-input" type="text" placeholder="Password e ntšhwa"></div>
+                <div class="ow-field"><label for="auRole">Karolo (Role)</label>
+                  <select id="auRole" class="ow-input"><option value="super">Super (edit only)</option><option value="supersuper">Supersuper (manage accounts)</option></select>
+                </div>
+              </div>
+              <button class="ow-btn" id="auCreate">Tlhama akhaonto (Create account)</button>
+              <div class="ow-msg" id="auMsg"></div>
             </div>
-            <button class="ow-btn" id="auCreate">Tlhama akhaonto (Create account)</button>
-            <div class="ow-msg" id="auMsg"></div>
           </div>
         </div>
 
@@ -593,7 +622,7 @@
     document.getElementById('ocrReview').style.display = 'none';
   }
 
-  // ---- per-animal editor (logged-in only): number, name, birth date, comment ----
+  // ---- per-animal editor (logged-in only): number, parents, name, birth date, comment ----
   function buildAnimEditor() {
     const m = document.createElement('div');
     m.id = 'animModal'; m.className = 'ow-overlay ow-hidden';
@@ -602,7 +631,11 @@
         <span class="ow-x" id="animClose">&times;</span>
         <h2>Edit animal</h2>
         <div id="animMeta" class="ow-meta"></div>
-        <div class="ow-field"><label for="animNum">Number</label><input type="text" id="animNum" class="ow-input"></div>
+        <div class="ow-grid ow-grid-3">
+          <div class="ow-field"><label for="animNum">Number</label><input type="text" id="animNum" class="ow-input"></div>
+          <div class="ow-field"><label for="animMother">Mother</label><input list="owHerd" type="text" id="animMother" class="ow-input" placeholder="Mother number"></div>
+          <div class="ow-field"><label for="animFather">Father</label><input list="owHerd" type="text" id="animFather" class="ow-input" placeholder="Father number"></div>
+        </div>
         <div class="ow-field"><label for="animName">Name</label><input type="text" id="animName" class="ow-input" placeholder="e.g. Rikus"></div>
         <div class="ow-field"><label for="animDob">Birth date</label><input type="date" id="animDob" class="ow-input"></div>
         <div class="ow-field"><label for="animCmt">Comment / note</label><textarea id="animCmt" class="ow-input" rows="2" placeholder="Optional note"></textarea></div>
@@ -622,6 +655,8 @@
     animEditingId = id;
     document.getElementById('animModal').classList.remove('ow-hidden');
     document.getElementById('animNum').value = a.id || id;
+    document.getElementById('animMother').value = a.motherId || '';
+    document.getElementById('animFather').value = a.fatherId || '';
     document.getElementById('animName').value = a.name || '';
     document.getElementById('animDob').value = a.dateOfBirth || '';
     document.getElementById('animCmt').value = '';
@@ -646,16 +681,21 @@
   async function saveAnimEdit() {
     const oldId = animEditingId;
     const newId = document.getElementById('animNum').value.trim();
+    const motherId = document.getElementById('animMother').value.trim();
+    const fatherId = document.getElementById('animFather').value.trim();
     const name = document.getElementById('animName').value.trim();
     const dob = document.getElementById('animDob').value || null;
     const comment = document.getElementById('animCmt').value.trim();
     if (!newId) { msg('animMsg', 'Number cannot be empty.', false); return; }
     const btn = document.getElementById('animSave'); btn.disabled = true; btn.textContent = 'Saving...';
     const res = await F.editAnimal({ id: oldId, newId: newId, name: name, dateOfBirth: dob, comment: comment });
-    btn.disabled = false; btn.textContent = 'Save';
-    if (authFailed(res)) return;
-    if (!res.ok) { msg('animMsg', 'Error: ' + (res.error || ''), false); return; }
+    if (authFailed(res)) { btn.disabled = false; btn.textContent = 'Save'; return; }
+    if (!res.ok) { btn.disabled = false; btn.textContent = 'Save'; msg('animMsg', 'Error: ' + (res.error || ''), false); return; }
     const finalId = res.id || newId;
+    const lineageRes = await F.updateLineage(finalId, { motherId: motherId, fatherId: fatherId });
+    btn.disabled = false; btn.textContent = 'Save';
+    if (authFailed(lineageRes)) return;
+    if (!lineageRes.ok) { msg('animMsg', 'Error: ' + (lineageRes.error || ''), false); return; }
     if (finalId !== oldId) localRename(oldId, finalId);
     else if (typeof window.loadGroup === 'function') window.loadGroup();
     await loadHerd();
@@ -663,6 +703,8 @@
     document.getElementById('animCmt').value = '';
     animEditingId = finalId;
     document.getElementById('animNum').value = finalId;
+    document.getElementById('animMother').value = motherId;
+    document.getElementById('animFather').value = fatherId;
     loadAnimComments(finalId);
   }
 

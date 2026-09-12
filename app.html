@@ -761,6 +761,12 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="attendanceComment">Comment before email</label>
+                    <textarea id="attendanceComment" rows="3" placeholder="Add any note you want included with the emailed attendance summary..."></textarea>
+                    <small style="display:block; margin-top:6px; color:#6b7280;">This note will be added to the attendance email for admins.</small>
+                </div>
+
                 <!-- Save Button - FLOATING -->
                 <button class="btn btn-success btn-full floating-save-btn" onclick="saveAttendance()" id="saveBtn">
                     💾 Boloka (Save Attendance)
@@ -3782,6 +3788,7 @@
                 alert('Tsweetswee kwala leina la modisa!\nPlease enter shepherd name!');
                 return;
             }
+            const attendanceComment = (document.getElementById('attendanceComment') ? document.getElementById('attendanceComment').value : '').trim();
             
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.disabled = true;
@@ -3807,7 +3814,7 @@
                 const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
                 const presentCount = allPresentToday.length;
                 const absentCount = activeLivestock.length - presentCount;
-                auditLog('attendance_saved', null, presentCount + '/' + activeLivestock.length + ' present, ' + formatDate(selectedDate));
+                auditLog('attendance_saved', null, presentCount + '/' + activeLivestock.length + ' present, ' + formatDate(selectedDate) + (attendanceComment ? (' | note: ' + attendanceComment.slice(0, 160)) : ''));
                 markDateDirty(selectedDate);
                 let cloudNote = ' <span style="color:#92400e;">E bolokilwe mo founong, e tla romelwa fa o le inthaneteng. (Saved on this phone, will sync when online.)</span>';
                 if (navigator.onLine && window.FarmData && window.FarmData.saveAttendanceCloud) {
@@ -3834,7 +3841,8 @@
                             absent: absentCount,
                             percentage: ((presentCount / activeLivestock.length) * 100).toFixed(2)
                         },
-                        inactiveCount: LIVESTOCK_DATA.filter(l => l.is_inactive).length
+                        inactiveCount: LIVESTOCK_DATA.filter(l => l.is_inactive).length,
+                        comment: attendanceComment
                     });
                 }
                 
@@ -3853,7 +3861,8 @@
                             present: presentCount,
                             absent: absentCount,
                             total: activeLivestock.length,
-                            percentage: ((presentCount / activeLivestock.length) * 100).toFixed(1)
+                            percentage: ((presentCount / activeLivestock.length) * 100).toFixed(1),
+                            comment: attendanceComment
                         });
                         if (r && r.ok && r.sent) { emailNote = ' Email sent!'; }
                         else { emailFailed = true; emailReason = (r && (r.reason || r.error)) || 'no response'; emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>'; }
@@ -3861,6 +3870,7 @@
                 }
                 document.getElementById('successMessage').innerHTML = `
                     <div class="alert-success">✓ Bolokwa ka katlego! Saved successfully!${WEBHOOK_CONFIG.enabled ? ' Synced to Excel!' : ''}${cloudNote}${emailNote}</div>
+                    ${attendanceComment ? `<div class="alert-info" style="margin-top:10px; text-align:left;">📝 Comment included: ${attendanceComment}</div>` : ''}
                     ${emailFailed ? `<div class="alert-info" style="background:#fee2e2;color:#991b1b;border-color:#ef4444;margin-top:10px;text-align:left;">📧 Imeile ga e a romelwa. (Email not sent.)<br><small>${emailReason ? 'Reason: ' + emailReason : ''}</small></div>` : ''}
                 `;
 
@@ -3868,6 +3878,7 @@
                 saveBtn.textContent = '💾 Boloka (Save Attendance)';
 
                 if (!emailFailed) {
+                    if (document.getElementById('attendanceComment')) document.getElementById('attendanceComment').value = '';
                     setTimeout(() => { document.getElementById('successMessage').innerHTML = ''; }, 3000);
                 }
                 
