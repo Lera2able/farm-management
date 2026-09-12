@@ -6,8 +6,8 @@
 // 3-day session token, and stamps every change with the logged-in name.
 
 window.FarmData = (function () {
-  const SUPABASE_URL = 'https://vousucfboetqtppjywlg.supabase.co';
-  const PUBLISHABLE_KEY = 'sb_publishable_mOLSxtGicEchOdWIdPL6BA_aaybClra';
+  const SUPABASE_URL = 'https://thgtdaxnsobxgykvzhni.supabase.co';
+  const PUBLISHABLE_KEY = 'sb_publishable_lIoB-OtLPFKmzzYs_EJS_g_OpavXR21';
   const FN_URL = SUPABASE_URL + '/functions/v1/farm-admin';
   const FN_OCR_URL = SUPABASE_URL + '/functions/v1/farm-ocr';
   const FN_NOTIFY_URL = SUPABASE_URL + '/functions/v1/farm-notify';

@@ -4,8 +4,8 @@
 // and pushed up to Supabase when there is a connection. This file only handles the
 // "push to the cloud" part, so the rest of the app is unchanged.
 
-const SUPABASE_URL = 'https://vousucfboetqtppjywlg.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_mOLSxtGicEchOdWIdPL6BA_aaybClra'; // public key, safe for the browser
+const SUPABASE_URL = 'https://thgtdaxnsobxgykvzhni.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_lIoB-OtLPFKmzzYs_EJS_g_OpavXR21'; // public key, safe for the browser
 const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 
 let _sbClient = null;
