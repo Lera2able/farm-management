@@ -77,12 +77,14 @@
         
         .nav-tabs {
             display: flex;
+            flex-wrap: wrap;
             background: #f3f4f6;
             border-bottom: 2px solid #e5e7eb;
         }
         
         .nav-tab {
-            flex: 1;
+            flex: 1 1 25%;
+            min-width: 120px;
             padding: 15px;
             text-align: center;
             background: none;
@@ -345,6 +347,94 @@
         .tab-content.active {
             display: block;
         }
+
+        .species-hero {
+            display: grid;
+            grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+            gap: 16px;
+            align-items: center;
+            background: linear-gradient(135deg, #f8fafc, #eef2ff);
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 18px;
+        }
+
+        .species-hero img {
+            width: 100%;
+            max-width: 200px;
+            border-radius: 12px;
+            object-fit: cover;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+        }
+
+        .species-note {
+            color: #6b7280;
+            font-size: 14px;
+            margin-top: 6px;
+        }
+
+        .species-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin: 18px 0;
+        }
+
+        .species-stat {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .species-stat-label {
+            display: block;
+            color: #6b7280;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .species-stat-value {
+            display: block;
+            color: #111827;
+            font-size: 26px;
+            font-weight: 700;
+        }
+
+        .species-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .species-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 14px 16px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+        }
+
+        .species-item.present {
+            border-color: #10b981;
+            background: #ecfdf5;
+        }
+
+        .species-tag {
+            font-size: 17px;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        .species-subtext {
+            color: #6b7280;
+            font-size: 13px;
+            margin-top: 2px;
+        }
         
         .action-cards {
             display: grid;
@@ -560,9 +650,18 @@
             .nav-tab {
                 font-size: 14px;
                 padding: 14px 8px;
+                flex: 1 1 33.33%;
+                min-width: 0;
             }
             .header h1 {
                 font-size: 22px;
+            }
+            .species-hero {
+                grid-template-columns: 1fr;
+            }
+            .species-hero img {
+                max-width: 100%;
+                margin: 0 auto;
             }
         }
     </style>
@@ -579,6 +678,12 @@
         <div class="nav-tabs">
             <button class="nav-tab active" id="registerTabBtn" onclick="switchTab('register')">
                 📋 Leruo
+            </button>
+            <button class="nav-tab" id="goatsTabBtn" onclick="switchTab('goats')">
+                🐐 Dipodi
+            </button>
+            <button class="nav-tab" id="sheepTabBtn" onclick="switchTab('sheep')">
+                🐑 Dinku
             </button>
             <button class="nav-tab" id="sickTabBtn" onclick="switchTab('sick')">
                 🤒 Bolwetse
@@ -667,6 +772,64 @@
                 </button>
 
                 <div id="successMessage"></div>
+            </div>
+        </div>
+
+        <!-- Goats Tab -->
+        <div id="goatsTab" class="tab-content">
+            <div class="content">
+                <div class="species-hero">
+                    <img src="assets/goats.jpeg" alt="Goats register reference">
+                    <div>
+                        <h2 style="margin-bottom: 6px; color: #1f2937;">🐐 Dipodi Register</h2>
+                        <p style="color: #374151;">Track goat attendance separately from the cattle register.</p>
+                        <p class="species-note">This tab keeps goat roll-call on this phone by date, without mixing it into the cattle sync.</p>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="goatsSearch">Batla podi (Search goat tag)</label>
+                    <input type="text" id="goatsSearch" placeholder="e.g., 74001" oninput="renderSpeciesTab('goats')">
+                </div>
+                <div class="species-stats">
+                    <div class="species-stat">
+                        <span class="species-stat-label">Total Dipodi</span>
+                        <span class="species-stat-value" id="goatsTotalCount">0</span>
+                    </div>
+                    <div class="species-stat">
+                        <span class="species-stat-label">Present Today</span>
+                        <span class="species-stat-value" id="goatsPresentCount">0</span>
+                    </div>
+                </div>
+                <div id="goatsList" class="species-list"></div>
+            </div>
+        </div>
+
+        <!-- Sheep Tab -->
+        <div id="sheepTab" class="tab-content">
+            <div class="content">
+                <div class="species-hero">
+                    <img src="assets/sheep.jpeg" alt="Sheep register reference">
+                    <div>
+                        <h2 style="margin-bottom: 6px; color: #1f2937;">🐑 Dinku Register</h2>
+                        <p style="color: #374151;">Track sheep attendance in their own tab with separate daily ticks.</p>
+                        <p class="species-note">This tab keeps sheep roll-call on this phone by date, separate from the main cattle register.</p>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="sheepSearch">Batla nku (Search sheep tag)</label>
+                    <input type="text" id="sheepSearch" placeholder="e.g., 73327" oninput="renderSpeciesTab('sheep')">
+                </div>
+                <div class="species-stats">
+                    <div class="species-stat">
+                        <span class="species-stat-label">Total Dinku</span>
+                        <span class="species-stat-value" id="sheepTotalCount">0</span>
+                    </div>
+                    <div class="species-stat">
+                        <span class="species-stat-label">Present Today</span>
+                        <span class="species-stat-value" id="sheepPresentCount">0</span>
+                    </div>
+                </div>
+                <div id="sheepList" class="species-list"></div>
             </div>
         </div>
 
@@ -2764,10 +2927,22 @@
                 "status": ""
         }
 ];
+        const GOAT_DATA = [
+            "74001", "74045", "74093", "74083", "56049", "1371", "56062", "74052", "76054",
+            "74094", "102", "1382", "1386", "1396", "1375", "1397", "1358", "1377", "1372",
+            "1373", "1393", "1376", "1383", "74051", "74067", "74057", "56085"
+        ];
+        const SHEEP_DATA = [
+            "73327", "1459", "1358", "1432", "72318", "73362", "1420", "73331", "1445", "1434",
+            "1412", "73357", "73305", "1430", "1444", "1410", "73377", "1359", "1440", "1421",
+            "1414", "1364", "1413", "1429", "1416", "1425", "73364", "1402", "74100", "1442",
+            "1441", "1447", "1433"
+        ];
         // Application State
         let currentGroup = 'all'; // START WITH VIEW ALL
         let currentLivestock = [];
         let attendance = {};
+        let smallStockAttendance = {};
         let absentTouchedByDate = {}; // date -> { id:true } for tags explicitly UNticked (so corrections sync)
         let pendingDates = {};   // dates with un-synced attendance (offline-safe queue)
         let pendingHealth = {};  // animals with un-synced sick/dead state
@@ -2788,6 +2963,8 @@
             selectedDate = document.getElementById('dateInput').value;
             document.getElementById('dateDisplay').value = formatDate(selectedDate);
             loadGroup(); // Reload when date changes
+            renderSpeciesTab('goats');
+            renderSpeciesTab('sheep');
             pullAttendance(selectedDate); // and fetch what other phones saved for it
         }
 
@@ -2834,8 +3011,10 @@
             // Load from localStorage
             const saved = localStorage.getItem('dikgomo_attendance');
             const savedShepherd = localStorage.getItem('dikgomo_shepherd');
+            const savedSmallStock = localStorage.getItem('khumotaka_smallstock_attendance');
             
             if (saved) attendance = JSON.parse(saved);
+            if (savedSmallStock) smallStockAttendance = JSON.parse(savedSmallStock);
             if (savedShepherd) {
                 shepherdName = savedShepherd;
                 document.getElementById('shepherdName').value = shepherdName;
@@ -2866,6 +3045,8 @@
             
             // AUTO-LOAD ALL LIVESTOCK ON START
             loadGroup();
+            renderSpeciesTab('goats');
+            renderSpeciesTab('sheep');
 
             // Then pull the latest herd from Supabase so newly registered
             // calves show up. Safe offline: it does nothing without a signal.
@@ -2892,6 +3073,8 @@
             if (tab === 'actions' && !(window.FarmData && window.FarmData.isAdmin())) tab = 'register';
             const map = {
                 register: ['registerTabBtn', 'registerTab'],
+                goats: ['goatsTabBtn', 'goatsTab'],
+                sheep: ['sheepTabBtn', 'sheepTab'],
                 sick: ['sickTabBtn', 'sickTab'],
                 dead: ['deadTabBtn', 'deadTab'],
                 actions: ['actionsTabBtn', 'actionsTab']
@@ -2903,6 +3086,7 @@
             const content = document.getElementById(m[1]);
             if (btn) btn.classList.add('active');
             if (content) content.classList.add('active');
+            if (tab === 'goats' || tab === 'sheep') renderSpeciesTab(tab);
             if (tab === 'sick') renderSick();
             if (tab === 'dead') renderDead();
         }
@@ -3501,6 +3685,73 @@
             if (typeof db !== 'undefined') { db.saveLocalState(livestockId, on); }
             loadGroup();
             updateStats();
+        }
+
+        function speciesData(type) {
+            return type === 'goats' ? GOAT_DATA : SHEEP_DATA;
+        }
+
+        function speciesPresentSet(type, date) {
+            return (((smallStockAttendance[type] || {})[date]) || {});
+        }
+
+        function toggleSpeciesAttendance(type, animalId) {
+            const date = selectedDate;
+            if (!smallStockAttendance[type]) smallStockAttendance[type] = {};
+            if (!smallStockAttendance[type][date]) smallStockAttendance[type][date] = {};
+            const checkbox = document.getElementById(`${type}_check_${animalId}`);
+            const on = !!(checkbox && checkbox.checked);
+            if (on) {
+                smallStockAttendance[type][date][animalId] = true;
+            } else {
+                delete smallStockAttendance[type][date][animalId];
+            }
+            localStorage.setItem('khumotaka_smallstock_attendance', JSON.stringify(smallStockAttendance));
+            renderSpeciesTab(type);
+        }
+
+        function renderSpeciesTab(type) {
+            const data = speciesData(type);
+            const searchEl = document.getElementById(type + 'Search');
+            const container = document.getElementById(type + 'List');
+            const totalEl = document.getElementById(type + 'TotalCount');
+            const presentEl = document.getElementById(type + 'PresentCount');
+            if (!container || !totalEl || !presentEl) return;
+
+            const q = ((searchEl && searchEl.value) || '').trim().toLowerCase();
+            const visible = q ? data.filter(id => String(id).toLowerCase().includes(q)) : data.slice();
+            const presentMap = speciesPresentSet(type, selectedDate);
+            totalEl.textContent = String(data.length);
+            presentEl.textContent = String(Object.keys(presentMap).length);
+
+            if (!visible.length) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">${type === 'goats' ? '🐐' : '🐑'}</div>
+                        <p>No matching ${type} found for that search.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = visible.map((id, index) => {
+                const checked = !!presentMap[id];
+                return `
+                    <div class="species-item ${checked ? 'present' : ''}">
+                        <div>
+                            <div class="species-tag">${id}</div>
+                            <div class="species-subtext">${type === 'goats' ? 'Goat' : 'Sheep'} ${index + 1}</div>
+                        </div>
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox"
+                                   id="${type}_check_${id}"
+                                   ${checked ? 'checked' : ''}
+                                   onchange="toggleSpeciesAttendance('${type}', '${id}')">
+                            <label for="${type}_check_${id}">Teng</label>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         // Update stats
