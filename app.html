@@ -7,7 +7,11 @@
       (function () { try { if (localStorage.getItem('khumotaka_access') !== 'granted') { location.replace('index.html'); } } catch (e) {} })();
     </script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dikgomo">
     <title>Dikgomo Register — Khumotaka</title>
     <link rel="manifest" href="manifest.json">
     
@@ -484,7 +488,7 @@
         
         .sync-indicator {
             position: fixed;
-            bottom: 20px;
+            bottom: calc(20px + env(safe-area-inset-bottom, 0px));
             right: 20px;
             background: white;
             padding: 12px 20px;
@@ -505,15 +509,59 @@
             border: 2px solid #f59e0b;
         }
         
+        .install-chip {
+            position: fixed;
+            right: 20px;
+            bottom: calc(146px + env(safe-area-inset-bottom, 0px));
+            z-index: 999;
+            border: 0;
+            border-radius: 999px;
+            padding: 11px 16px;
+            background: #1e3a8a;
+            color: #fff;
+            box-shadow: 0 8px 22px rgba(30,58,138,0.28);
+            font-weight: 700;
+            cursor: pointer;
+        }
+        
+        .install-chip.hidden {
+            display: none;
+        }
+        
         .floating-save-btn {
             position: fixed;
-            bottom: 80px;
+            bottom: calc(80px + env(safe-area-inset-bottom, 0px));
             left: 50%;
             transform: translateX(-50%);
             width: calc(100% - 40px);
             max-width: 1160px;
             z-index: 998;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding-bottom: calc(180px + env(safe-area-inset-bottom, 0px));
+            }
+            .sync-indicator {
+                left: 20px;
+                right: 20px;
+                text-align: center;
+            }
+            .install-chip {
+                bottom: calc(146px + env(safe-area-inset-bottom, 0px));
+                left: 20px;
+                right: 20px;
+                width: auto;
+                text-align: center;
+            }
+            .nav-tab {
+                font-size: 14px;
+                padding: 14px 8px;
+            }
+            .header h1 {
+                font-size: 22px;
+            }
         }
     </style>
 </head>
@@ -818,6 +866,7 @@
     <div id="syncIndicator" class="sync-indicator online">
         ✓ Online
     </div>
+    <button id="installChip" class="install-chip hidden" type="button">Install app</button>
 
     <script>
         // LIVESTOCK DATA - Embedded (315 animals including Rikus, JH1408, Olebile, Rush, Ouben)
@@ -4011,15 +4060,58 @@
             document.getElementById('inactiveModal').classList.add('hidden');
         }
 
+        const INSTALL_DISMISS_KEY = 'khumotaka_install_dismissed';
+        let deferredInstallPrompt = null;
+
+        function isStandaloneMode() {
+            return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        }
+
+        function isIosSafari() {
+            const ua = window.navigator.userAgent || '';
+            const isApple = /iPad|iPhone|iPod/.test(ua);
+            const isWebkit = /WebKit/.test(ua);
+            const isOtherBrowser = /CriOS|FxiOS|EdgiOS/.test(ua);
+            return isApple && isWebkit && !isOtherBrowser;
+        }
+
+        function refreshInstallChip() {
+            const chip = document.getElementById('installChip');
+            if (!chip) return;
+            const dismissed = localStorage.getItem(INSTALL_DISMISS_KEY) === '1';
+            if (dismissed || isStandaloneMode()) {
+                chip.classList.add('hidden');
+                chip.textContent = 'Install app';
+                return;
+            }
+            chip.classList.remove('hidden');
+            chip.textContent = deferredInstallPrompt ? 'Install app' : (isIosSafari() ? 'Add to Home Screen' : 'Install help');
+        }
+
+        async function handleInstallClick() {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                try { await deferredInstallPrompt.userChoice; } catch (e) {}
+                deferredInstallPrompt = null;
+                refreshInstallChip();
+                return;
+            }
+            if (isIosSafari()) {
+                alert('On iPhone, tap Share and then Add to Home Screen.');
+            } else {
+                alert('If install is available, use your browser menu and choose Install app or Add to Home Screen.');
+            }
+        }
+
         // Online/offline status
         function updateOnlineStatus() {
             const indicator = document.getElementById('syncIndicator');
             if (navigator.onLine) {
                 indicator.className = 'sync-indicator online';
-                indicator.textContent = '✓ Online';
+                indicator.textContent = '✓ Online and syncing';
             } else {
                 indicator.className = 'sync-indicator offline';
-                indicator.textContent = '⚠ Offline';
+                indicator.textContent = '⚠ Offline mode active';
             }
         }
 
@@ -4117,10 +4209,28 @@
     
     <!-- Service Worker -->
     <script>
+        window.addEventListener('beforeinstallprompt', function (event) {
+            event.preventDefault();
+            deferredInstallPrompt = event;
+            try { localStorage.removeItem(INSTALL_DISMISS_KEY); } catch (e) {}
+            refreshInstallChip();
+        });
+        window.addEventListener('appinstalled', function () {
+            deferredInstallPrompt = null;
+            try { localStorage.removeItem(INSTALL_DISMISS_KEY); } catch (e) {}
+            refreshInstallChip();
+        });
+        document.getElementById('installChip').addEventListener('click', handleInstallClick);
+        document.getElementById('installChip').addEventListener('contextmenu', function (event) {
+            event.preventDefault();
+            try { localStorage.setItem(INSTALL_DISMISS_KEY, '1'); } catch (e) {}
+            refreshInstallChip();
+        });
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('service-worker.js')
                 .catch(err => console.log('SW registration failed'));
         }
+        refreshInstallChip();
     </script>
     <script src="supabase-data.js"></script>
     <script src="owner-ui.js"></script>
