@@ -17,8 +17,6 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
     
-    <!-- EmailJS for automatic email notifications -->
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script type="text/javascript">
         // EmailJS Configuration - ADD YOUR KEYS HERE AFTER SIGNUP
         const EMAIL_CONFIG = {
@@ -27,10 +25,35 @@
             publicKey: 'rnJzbY1y7N3GgbwjH',    // EmailJS Public Key
             enabled: true                       // ENABLED - Emails will send automatically!
         };
-        
-        // Initialize EmailJS
-        if (EMAIL_CONFIG.enabled && EMAIL_CONFIG.publicKey) {
-            emailjs.init(EMAIL_CONFIG.publicKey);
+
+        let emailJsLoader = null;
+        async function ensureEmailJs() {
+            if (!EMAIL_CONFIG.enabled || !EMAIL_CONFIG.publicKey) return null;
+            if (window.emailjs) return window.emailjs;
+            if (emailJsLoader) return emailJsLoader;
+            emailJsLoader = new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
+                s.async = true;
+                s.onload = () => {
+                    try {
+                        if (window.emailjs) {
+                            window.emailjs.init(EMAIL_CONFIG.publicKey);
+                            resolve(window.emailjs);
+                        } else {
+                            reject(new Error('EmailJS library missing'));
+                        }
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+                s.onerror = () => reject(new Error('Could not load EmailJS'));
+                document.head.appendChild(s);
+            }).catch((err) => {
+                emailJsLoader = null;
+                throw err;
+            });
+            return emailJsLoader;
         }
     </script>
     
@@ -4053,6 +4076,11 @@
             }
             
             try {
+                const emailjs = await ensureEmailJs();
+                if (!emailjs) {
+                    lastEmailError = 'EmailJS unavailable';
+                    return false;
+                }
                 const templateParams = {
                     to_email: 'leratom2012@gmail.com, mogajaneo@yahoo.com',
                     date: data.date,
