@@ -2934,16 +2934,17 @@
                 "status": ""
         }
 ];
-        const GOAT_DATA = [
+        let GOAT_DATA = [
             "74001", "74045", "74093", "74083", "56049", "1371", "56062", "74052", "76054",
             "74094", "102", "1382", "1386", "1396", "1375", "1397", "1358", "1377", "1372",
-            "1373", "1393", "1376", "1383", "74051", "74067", "74057", "56085"
+            "1373", "1393", "1376", "1383", "74051", "74067", "74057", "56085",
+            "74048", "1394", "74091", "1398", "74078", "1388", "31647", "74054", "1374", "1385", "31642"
         ];
-        const SHEEP_DATA = [
+        let SHEEP_DATA = [
             "73327", "1459", "1358", "1432", "72318", "73362", "1420", "73331", "1445", "1434",
             "1412", "73357", "73305", "1430", "1444", "1410", "73377", "1359", "1440", "1421",
             "1414", "1364", "1413", "1429", "1416", "1425", "73364", "1402", "74100", "1442",
-            "1441", "1447", "1433"
+            "1441", "1447", "1433", "73318", "1439", "1400", "73371", "1361", "1357", "73352"
         ];
         // Application State
         let currentGroup = 'all'; // START WITH VIEW ALL
@@ -2966,13 +2967,33 @@
             return `${day}/${month}/${year}`;
         }
 
-        function updateDateDisplay() {
+        function uniqueTagList(values) {
+            return [...new Set((values || []).map(v => String(v || '').trim()).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        }
+
+        function saveSmallStockRegistryCache() {
+            localStorage.setItem('khumotaka_smallstock_registry', JSON.stringify({
+                goats: GOAT_DATA,
+                sheep: SHEEP_DATA
+            }));
+        }
+
+        function mergeSpeciesRegistry(type, ids) {
+            const next = uniqueTagList((type === 'goats' ? GOAT_DATA : SHEEP_DATA).concat(ids || []));
+            if (type === 'goats') GOAT_DATA = next;
+            else SHEEP_DATA = next;
+            saveSmallStockRegistryCache();
+        }
+
+        async function updateDateDisplay() {
             selectedDate = document.getElementById('dateInput').value;
             document.getElementById('dateDisplay').value = formatDate(selectedDate);
             loadGroup(); // Reload when date changes
             renderSpeciesTab('goats');
             renderSpeciesTab('sheep');
             pullAttendance(selectedDate); // and fetch what other phones saved for it
+            pullSmallStockAttendance(selectedDate);
         }
 
         // Pull the herd from Supabase and merge in any animals not already in
@@ -2998,6 +3019,24 @@
             }
         }
 
+        async function refreshSmallStockFromCloud() {
+            if (!window.FarmData || !navigator.onLine || !window.FarmData.getSmallStockRegistry) return;
+            try {
+                const goatRes = await window.FarmData.getSmallStockRegistry('goat');
+                if (goatRes && goatRes.ok && Array.isArray(goatRes.rows)) {
+                    mergeSpeciesRegistry('goats', goatRes.rows.map(r => r.id));
+                }
+                const sheepRes = await window.FarmData.getSmallStockRegistry('sheep');
+                if (sheepRes && sheepRes.ok && Array.isArray(sheepRes.rows)) {
+                    mergeSpeciesRegistry('sheep', sheepRes.rows.map(r => r.id));
+                }
+                renderSpeciesTab('goats');
+                renderSpeciesTab('sheep');
+            } catch (e) {
+                console.log('Cloud small-stock refresh skipped:', e.message);
+            }
+        }
+
         // Initialize
         function init() {
             console.log('Loading LIVESTOCK_DATA...', LIVESTOCK_DATA ? LIVESTOCK_DATA.length + ' animals' : 'FAILED');
@@ -3019,9 +3058,19 @@
             const saved = localStorage.getItem('dikgomo_attendance');
             const savedShepherd = localStorage.getItem('dikgomo_shepherd');
             const savedSmallStock = localStorage.getItem('khumotaka_smallstock_attendance');
+            const savedSmallStockRegistry = localStorage.getItem('khumotaka_smallstock_registry');
             
             if (saved) attendance = JSON.parse(saved);
             if (savedSmallStock) smallStockAttendance = JSON.parse(savedSmallStock);
+            if (savedSmallStockRegistry) {
+                try {
+                    const parsed = JSON.parse(savedSmallStockRegistry) || {};
+                    GOAT_DATA = uniqueTagList(GOAT_DATA.concat(parsed.goats || []));
+                    SHEEP_DATA = uniqueTagList(SHEEP_DATA.concat(parsed.sheep || []));
+                } catch (e) {}
+            } else {
+                saveSmallStockRegistryCache();
+            }
             if (savedShepherd) {
                 shepherdName = savedShepherd;
                 document.getElementById('shepherdName').value = shepherdName;
@@ -3058,12 +3107,14 @@
             // Then pull the latest herd from Supabase so newly registered
             // calves show up. Safe offline: it does nothing without a signal.
             refreshHerdFromCloud();
+            refreshSmallStockFromCloud();
             updateActionsVisibility();
             loadSickDead();
             loadPending();
             if (navigator.onLine) flushPending();
             pullHealth();
             pullAttendance(selectedDate);
+            pullSmallStockAttendance(selectedDate);
         }
 
         // Switch tabs
@@ -3249,6 +3300,47 @@
             } catch (e) { console.log('pullAttendance skipped:', e.message); }
         }
 
+        function applySmallStockCloudRow(type, date, row) {
+            if (!smallStockAttendance[type]) smallStockAttendance[type] = {};
+            const local = smallStockAttendance[type][date] || {};
+            const merged = { ...local };
+            const ids = (row && Array.isArray(row.present_ids)) ? row.present_ids : [];
+            ids.forEach(function (id) { merged[String(id)] = true; });
+            smallStockAttendance[type][date] = merged;
+            localStorage.setItem('khumotaka_smallstock_attendance', JSON.stringify(smallStockAttendance));
+            renderSpeciesTab(type);
+        }
+
+        async function pullSmallStockAttendance(date) {
+            if (!window.FarmData || !navigator.onLine || !window.FarmData.getSmallStockAttendanceCloud) return;
+            try {
+                const goatRes = await window.FarmData.getSmallStockAttendanceCloud('goat', date);
+                const goatRow = goatRes && goatRes.ok && Array.isArray(goatRes.rows)
+                    ? (goatRes.rows.find(function (r) { return r.date === date; }) || null)
+                    : null;
+                if (goatRow) applySmallStockCloudRow('goats', date, goatRow);
+
+                const sheepRes = await window.FarmData.getSmallStockAttendanceCloud('sheep', date);
+                const sheepRow = sheepRes && sheepRes.ok && Array.isArray(sheepRes.rows)
+                    ? (sheepRes.rows.find(function (r) { return r.date === date; }) || null)
+                    : null;
+                if (sheepRow) applySmallStockCloudRow('sheep', date, sheepRow);
+            } catch (e) {
+                console.log('pullSmallStockAttendance skipped:', e.message);
+            }
+        }
+
+        async function pushSmallStockAttendance(type, date, comment) {
+            if (!navigator.onLine || !window.FarmData || !window.FarmData.saveSmallStockAttendanceCloud) return { ok: false, offline: true };
+            const ids = Object.keys(speciesPresentSet(type, date));
+            const species = type === 'goats' ? 'goat' : 'sheep';
+            try {
+                return await window.FarmData.saveSmallStockAttendanceCloud(species, date, ids, actorName(), comment || '');
+            } catch (e) {
+                return { ok: false };
+            }
+        }
+
         async function pushHealthOne(id) {
             if (!navigator.onLine || !window.FarmData || !window.FarmData.setHealthCloud) return { ok: false };
             try {
@@ -3285,7 +3377,7 @@
             for (let i = 0; i < ids.length; i++) { await pushHealthOne(ids[i]); }
         }
         window.addEventListener('online', function () {
-            flushPending().then(function () { pullAttendance(selectedDate); pullHealth(); }).catch(function () {});
+            flushPending().then(function () { pullAttendance(selectedDate); pullSmallStockAttendance(selectedDate); pullHealth(); }).catch(function () {});
         });
 
         // ---- Stats / Dipalopalo (owner, under Actions) - source: master workbook + local ----
@@ -3825,6 +3917,13 @@
                 if (navigator.onLine && window.FarmData && window.FarmData.saveAttendanceCloud) {
                     const cr = await pushAttendance(selectedDate);
                     if (cr && cr.ok) cloudNote = ' <span style="color:#065f46;">Di romilwe go difounu tsotlhe. (Synced to all phones.)</span>';
+                }
+                if (navigator.onLine && window.FarmData && window.FarmData.saveSmallStockAttendanceCloud) {
+                    const goatSync = await pushSmallStockAttendance('goats', selectedDate, attendanceComment);
+                    const sheepSync = await pushSmallStockAttendance('sheep', selectedDate, attendanceComment);
+                    if ((goatSync && goatSync.ok) || (sheepSync && sheepSync.ok)) {
+                        cloudNote += ' <span style="color:#065f46;">Dipodi le dinku le tsone di rometswe. (Goat and sheep dates synced too.)</span>';
+                    }
                 }
                 
                 // Save to localStorage first

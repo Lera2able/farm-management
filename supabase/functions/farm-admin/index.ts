@@ -26,6 +26,13 @@ serve(async (req) => {
     const supabase = getAdminClient();
 
     if (!action) return json(400, { ok: false, error: "Missing action" });
+    const normalizeSpecies = (raw: unknown) => {
+      const s = String(raw ?? "").trim().toLowerCase();
+      if (s === "goat" || s === "goats" || s === "dipodi") return "goat";
+      if (s === "sheep" || s === "dinku") return "sheep";
+      return "";
+    };
+    const speciesLabel = (species: string) => (species === "goat" ? "Goat" : "Sheep");
 
     if (action === "login") {
       await ensureBootstrapUser(supabase);
@@ -160,6 +167,138 @@ serve(async (req) => {
         .order("livestock_id", { ascending: true });
       if (error) throw error;
       return json(200, { ok: true, rows: data ?? [] });
+    }
+
+    if (action === "getSmallStockRegistry") {
+      const species = normalizeSpecies(body.species);
+      let query = supabase
+        .from("farm_smallstock_registry")
+        .select("tag_id,species,is_active,sex,note,updated_by,updated_at,source")
+        .eq("is_active", true)
+        .order("tag_id", { ascending: true });
+      if (species) query = query.eq("species", species);
+      const { data, error } = await query;
+      if (error) throw error;
+      return json(200, {
+        ok: true,
+        rows: (data ?? []).map((r) => ({
+          id: r.tag_id,
+          species: r.species,
+          is_active: !!r.is_active,
+          sex: r.sex,
+          note: r.note,
+          updated_by: r.updated_by,
+          updated_at: r.updated_at,
+          source: r.source,
+        })),
+      });
+    }
+
+    if (action === "getSmallStockAttendance") {
+      const species = normalizeSpecies(body.species);
+      if (!species) return json(400, { ok: false, error: "Missing species" });
+      let query = supabase
+        .from("farm_smallstock_attendance")
+        .select("species,attendance_date,present_tags,updated_by,recorded_at,comment")
+        .eq("species", species)
+        .order("attendance_date", { ascending: false });
+      if (body.date) query = query.eq("attendance_date", String(body.date));
+      const { data, error } = await query;
+      if (error) throw error;
+      return json(200, {
+        ok: true,
+        rows: (data ?? []).map((r) => ({
+          species: r.species,
+          date: r.attendance_date,
+          present_ids: Array.isArray(r.present_tags) ? r.present_tags : [],
+          updated_by: r.updated_by,
+          updated_at: r.recorded_at,
+          comment: r.comment,
+        })),
+      });
+    }
+
+    if (action === "saveSmallStockAttendance") {
+      const species = normalizeSpecies(body.species);
+      const date = String(body.date ?? "");
+      const by = String(body.by ?? "Modisa");
+      const comment = String(body.comment ?? "").trim();
+      const presentIds = Array.isArray(body.presentIds)
+        ? [...new Set(body.presentIds.map((x) => String(x).trim()).filter(Boolean))].sort()
+        : [];
+      if (!species) return json(400, { ok: false, error: "Missing species" });
+      if (!date) return json(400, { ok: false, error: "Missing date" });
+
+      const { count: totalActive, error: countError } = await supabase
+        .from("farm_smallstock_registry")
+        .select("tag_id", { count: "exact", head: true })
+        .eq("species", species)
+        .eq("is_active", true);
+      if (countError) throw countError;
+
+      const { error: upsertError } = await supabase.from("farm_smallstock_attendance").upsert({
+        species,
+        attendance_date: date,
+        present_tags: presentIds,
+        present_count: presentIds.length,
+        total_active: totalActive ?? null,
+        updated_by: by,
+        recorded_at: new Date().toISOString(),
+        comment: comment || null,
+        source: "app",
+      }, { onConflict: "species,attendance_date" });
+      if (upsertError) throw upsertError;
+
+      await logAudit(supabase, {
+        action: "smallstock_attendance_saved",
+        actor: by,
+        source: species,
+        detail: `${species}:${date}:${presentIds.length}`,
+      });
+
+      const label = speciesLabel(species);
+      const text = [
+        `Khumotaka ${label.toLowerCase()} attendance summary`,
+        `Species: ${label}`,
+        `Date: ${date}`,
+        `Updated by: ${by}`,
+        `Present: ${presentIds.length}`,
+        ...(totalActive != null ? [`Total active: ${String(totalActive)}`] : []),
+        ...(comment ? [`Comment: ${comment}`] : []),
+      ].join("\n");
+      const html = `
+        <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+          <h2 style="margin-bottom:8px">Khumotaka ${label} attendance summary</h2>
+          <table cellpadding="8" cellspacing="0" style="border-collapse:collapse">
+            <tr><td><b>Species</b></td><td>${label}</td></tr>
+            <tr><td><b>Date</b></td><td>${date}</td></tr>
+            <tr><td><b>Updated by</b></td><td>${by}</td></tr>
+            <tr><td><b>Present</b></td><td>${presentIds.length}</td></tr>
+            ${totalActive != null ? `<tr><td><b>Total active</b></td><td>${String(totalActive)}</td></tr>` : ""}
+            ${comment ? `<tr><td><b>Comment</b></td><td>${comment}</td></tr>` : ""}
+          </table>
+        </div>
+      `;
+      const mailResult = await sendResendEmail({
+        subject: `Khumotaka ${label} attendance: ${date}`,
+        text,
+        html,
+      });
+      if (!mailResult.ok) {
+        console.error("[farm-admin] small stock attendance email not sent", species, date, mailResult.reason);
+      }
+
+      return json(200, {
+        ok: true,
+        row: {
+          species,
+          date,
+          present_ids: presentIds,
+          updated_by: by,
+          updated_at: new Date().toISOString(),
+          comment,
+        },
+      });
     }
 
     const auth = await requireSession(
@@ -378,6 +517,86 @@ serve(async (req) => {
       }
       await logAudit(supabase, { action: "animal_edited", livestock_id: newId, actor, detail: `${id} -> ${newId}`, source: "owner" });
       return json(200, { ok: true, id: newId });
+    }
+
+    if (action === "upsertSmallStockRegistry") {
+      const species = normalizeSpecies(body.species);
+      const source = String(body.source ?? "owner panel");
+      const note = String(body.note ?? "").trim();
+      const tags = Array.isArray(body.tags)
+        ? [...new Set(body.tags.map((x) => String(x).trim()).filter(Boolean))]
+        : [];
+      if (!species) return json(400, { ok: false, error: "Missing species" });
+      if (!tags.length) return json(400, { ok: false, error: "Missing tags" });
+
+      const { data: existingRows, error: existingError } = await supabase
+        .from("farm_smallstock_registry")
+        .select("tag_id")
+        .eq("species", species)
+        .in("tag_id", tags);
+      if (existingError) throw existingError;
+
+      const existing = new Set((existingRows ?? []).map((r) => String(r.tag_id)));
+      const addedTags = tags.filter((tag) => !existing.has(tag));
+      if (addedTags.length) {
+        const rows = addedTags.map((tag) => ({
+          tag_id: tag,
+          species,
+          is_active: true,
+          note: note || null,
+          created_by: actor,
+          updated_by: actor,
+          source,
+        }));
+        const { error: insertError } = await supabase.from("farm_smallstock_registry").insert(rows);
+        if (insertError) throw insertError;
+      }
+
+      await logAudit(supabase, {
+        action: "smallstock_registry_upsert",
+        actor,
+        source: species,
+        detail: `${species}:${tags.join(",")}`,
+      });
+
+      if (addedTags.length) {
+        const label = speciesLabel(species);
+        const text = [
+          `Khumotaka new ${label.toLowerCase()} registry entries`,
+          `Species: ${label}`,
+          `Added by: ${actor}`,
+          `Source: ${source}`,
+          `New tags: ${addedTags.join(", ")}`,
+          ...(note ? [`Note: ${note}`] : []),
+        ].join("\n");
+        const html = `
+          <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+            <h2 style="margin-bottom:8px">Khumotaka new ${label} registry entries</h2>
+            <table cellpadding="8" cellspacing="0" style="border-collapse:collapse">
+              <tr><td><b>Species</b></td><td>${label}</td></tr>
+              <tr><td><b>Added by</b></td><td>${actor}</td></tr>
+              <tr><td><b>Source</b></td><td>${source}</td></tr>
+              <tr><td><b>New tags</b></td><td>${addedTags.join(", ")}</td></tr>
+              ${note ? `<tr><td><b>Note</b></td><td>${note}</td></tr>` : ""}
+            </table>
+          </div>
+        `;
+        const mailResult = await sendResendEmail({
+          subject: `Khumotaka new ${label.toLowerCase()} entries (${addedTags.length})`,
+          text,
+          html,
+        });
+        if (!mailResult.ok) {
+          console.error("[farm-admin] small stock new entry email not sent", species, mailResult.reason);
+        }
+      }
+
+      return json(200, {
+        ok: true,
+        species,
+        added_tags: addedTags,
+        existing_tags: tags.filter((tag) => existing.has(tag)),
+      });
     }
 
     if (action === "addComment") {

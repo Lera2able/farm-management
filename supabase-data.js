@@ -220,6 +220,22 @@ window.FarmData = (function () {
   function getAttendanceCloud(date) { return callFn('getAttendance', date ? { date: date } : {}); }
   function setHealthCloud(livestockId, sick, dead, by) { return callFn('setHealth', { livestockId: livestockId, sick: sick, dead: dead, by: by }); }
   function getHealthCloud() { return callFn('getHealth', {}); }
+  function getSmallStockRegistry(species) { return callFn('getSmallStockRegistry', species ? { species: species } : {}); }
+  function saveSmallStockAttendanceCloud(species, date, presentIds, by, comment) {
+    return callFn('saveSmallStockAttendance', {
+      species: species,
+      date: date,
+      presentIds: presentIds || [],
+      by: by,
+      comment: comment || '',
+    });
+  }
+  function getSmallStockAttendanceCloud(species, date) {
+    return callFn('getSmallStockAttendance', {
+      species: species,
+      ...(date ? { date: date } : {}),
+    });
+  }
 
   return {
     getClient, loadHerd, getStats, groupForId,
@@ -228,6 +244,7 @@ window.FarmData = (function () {
     listUsers, createUser, deleteUser,
     logAudit, getAudit, notifyAttendance,
     saveAttendanceCloud, getAttendanceCloud, setHealthCloud, getHealthCloud,
+    getSmallStockRegistry, saveSmallStockAttendanceCloud, getSmallStockAttendanceCloud,
     deleteAttendanceCloud, clearHealthCloud,
   };
 })();
