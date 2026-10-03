@@ -1,10 +1,10 @@
 {
-  "id": "/index.html",
+  "id": "/app.html",
   "name": "Khumotaka Dikgomo Register",
   "short_name": "Dikgomo",
   "description": "Installable Khumotaka farm register app with offline-safe attendance capture and sync",
   "lang": "en",
-  "start_url": "/index.html",
+  "start_url": "/app.html",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],

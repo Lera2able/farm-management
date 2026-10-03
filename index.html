@@ -98,6 +98,7 @@
         var PUBKEY = 'sb_publishable_lIoB-OtLPFKmzzYs_EJS_g_OpavXR21';
         var INSTALL_DISMISS_KEY = 'khumotaka_install_dismissed';
         var OFFLINE_READY_KEY = 'khumotaka_offline_ready';
+        var INSTALL_PROMPTED_SESSION_KEY = 'khumotaka_install_prompted_session';
         var deferredInstallPrompt = null;
         (function () {
             try {
@@ -176,6 +177,20 @@
             }
             alert('Open your browser menu and choose Install app or Add to Home Screen.');
         }
+        async function maybePromptInstallFromRegisterTap() {
+            if (isStandalone()) return;
+            if (!deferredInstallPrompt) return;
+            try {
+                if (sessionStorage.getItem(INSTALL_PROMPTED_SESSION_KEY) === '1') return;
+            } catch (e) {}
+            try { sessionStorage.setItem(INSTALL_PROMPTED_SESSION_KEY, '1'); } catch (e) {}
+            try {
+                deferredInstallPrompt.prompt();
+                await deferredInstallPrompt.userChoice;
+            } catch (e) {}
+            deferredInstallPrompt = null;
+            refreshInstallNote();
+        }
         window.addEventListener('beforeinstallprompt', function (event) {
             event.preventDefault();
             deferredInstallPrompt = event;
@@ -184,6 +199,7 @@
         window.addEventListener('appinstalled', function () {
             deferredInstallPrompt = null;
             try { localStorage.removeItem(INSTALL_DISMISS_KEY); } catch (e) {}
+            try { sessionStorage.removeItem(INSTALL_PROMPTED_SESSION_KEY); } catch (e) {}
             refreshInstallNote();
         });
         window.addEventListener('DOMContentLoaded', function () {
@@ -202,12 +218,14 @@
             refreshInstallNote();
         });
         function enterRegister() {
-            if (localStorage.getItem('khumotaka_access') === 'granted') { location.href = 'app.html'; return; }
-            if (!navigator.onLine && isOfflineReady()) { location.href = 'app.html'; return; }
-            document.getElementById('gerr').textContent = '';
-            document.getElementById('gpw').value = '';
-            document.getElementById('gate').classList.add('show');
-            setTimeout(function () { document.getElementById('gpw').focus(); }, 50);
+            Promise.resolve(maybePromptInstallFromRegisterTap()).finally(function () {
+                if (localStorage.getItem('khumotaka_access') === 'granted') { location.href = 'app.html'; return; }
+                if (!navigator.onLine && isOfflineReady()) { location.href = 'app.html'; return; }
+                document.getElementById('gerr').textContent = '';
+                document.getElementById('gpw').value = '';
+                document.getElementById('gate').classList.add('show');
+                setTimeout(function () { document.getElementById('gpw').focus(); }, 50);
+            });
         }
         function closeGate() { document.getElementById('gate').classList.remove('show'); }
         function lockDevice() {
