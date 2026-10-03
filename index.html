@@ -46,11 +46,14 @@
         .card p { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
         .card input { width: 100%; padding: 13px 14px; font-size: 16px; border: 1.5px solid #d8d8d8; border-radius: 9px; outline: none; transition: border-color .15s; }
         .card input:focus { border-color: var(--gold); }
-        .install-note { margin-top: 12px; background: rgba(255,255,255,.16); color: #eef4ff; border: 1px solid rgba(255,255,255,.2); border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.45; }
-        .install-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-        .install-btn, .install-dismiss { border: 0; border-radius: 999px; padding: 10px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
-        .install-btn { background: var(--gold); color: var(--navy); }
+        .install-note { margin-top: 12px; background: rgba(255,255,255,.16); color: #eef4ff; border: 1px solid rgba(255,255,255,.2); border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.45; text-align: left; }
+        .install-title { font-size: 14px; font-weight: 700; color: #fff; }
+        .install-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        .install-btn, .install-dismiss, .open-app-btn { border: 0; border-radius: 999px; padding: 12px 16px; font-size: 14px; font-weight: 700; cursor: pointer; min-height: 44px; }
+        .install-btn { background: var(--gold); color: var(--navy); box-shadow: 0 8px 20px rgba(0,0,0,.18); }
         .install-dismiss { background: rgba(255,255,255,.14); color: #fff; }
+        .open-app-btn { background: #fff; color: var(--navy); }
+        .install-state { margin-top: 8px; font-size: 12px; color: #fef3c7; }
         .hidden { display: none !important; }
         .row { display: flex; gap: 10px; margin-top: 14px; }
         .btn { flex: 1; padding: 13px; border-radius: 9px; border: none; cursor: pointer; font-weight: 700; font-size: 15px; }
@@ -67,12 +70,14 @@
         <p class="home">The home of Khumotaka.</p>
         <button class="enter" onclick="enterRegister()">&#128273; Enter the Livestock Register</button>
         <div id="installNote" class="install-note hidden">
-            <div><strong>Download or install Khumotaka on this phone.</strong> It opens like an app and works better offline after the first visit.</div>
+            <div class="install-title">Download or install Khumotaka on this phone.</div>
             <div id="installHint" style="margin-top:6px;">Use the install option in your browser or tap the button below when it appears.</div>
             <div class="install-actions">
                 <button id="installBtn" class="install-btn hidden" type="button">Download app</button>
+                <button id="openAppBtn" class="open-app-btn hidden" type="button">Open app</button>
                 <button id="installDismiss" class="install-dismiss" type="button">Not now</button>
             </div>
+            <div id="installState" class="install-state"></div>
         </div>
         <p class="sub">Dikgomo Register &mdash; daily roll-call for cattle, goats &amp; sheep.</p>
         <div class="rule"></div>
@@ -142,21 +147,28 @@
         function refreshInstallNote() {
             var note = document.getElementById('installNote');
             var btn = document.getElementById('installBtn');
+            var openBtn = document.getElementById('openAppBtn');
             var hint = document.getElementById('installHint');
-            if (!note || !btn || !hint) return;
+            var state = document.getElementById('installState');
+            if (!note || !btn || !hint || !openBtn || !state) return;
             var dismissed = localStorage.getItem(INSTALL_DISMISS_KEY) === '1';
+            var granted = localStorage.getItem('khumotaka_access') === 'granted';
             if (dismissed || isStandalone()) {
                 note.classList.add('hidden');
                 return;
             }
             note.classList.remove('hidden');
+            openBtn.classList.toggle('hidden', !granted);
+            state.textContent = granted
+                ? 'This phone is already trusted. You can open the register now, or install the app for easier access.'
+                : 'Install once on this phone for easier opening and better offline use.';
             if (deferredInstallPrompt) {
                 btn.classList.remove('hidden');
                 btn.textContent = 'Download app';
-                hint.textContent = 'Tap Download app to install the phone app version with offline support.';
+                hint.textContent = 'Android and supported browsers: tap Download app to install the phone app version with offline support.';
             } else if (isIosSafari()) {
                 btn.classList.add('hidden');
-                hint.textContent = 'On iPhone, tap Share and then Add to Home Screen to install it like an app.';
+                hint.textContent = 'iPhone: tap Share, then Add to Home Screen. After that the app icon opens straight to the register.';
             } else {
                 btn.classList.remove('hidden');
                 btn.textContent = 'How to install';
@@ -200,13 +212,23 @@
             deferredInstallPrompt = null;
             try { localStorage.removeItem(INSTALL_DISMISS_KEY); } catch (e) {}
             try { sessionStorage.removeItem(INSTALL_PROMPTED_SESSION_KEY); } catch (e) {}
+            try { localStorage.setItem('khumotaka_access', 'granted'); } catch (e) {}
             refreshInstallNote();
+            setTimeout(function () {
+                alert('Khumotaka was installed. Tap the new app icon on your phone to open the register directly.');
+            }, 150);
         });
         window.addEventListener('DOMContentLoaded', function () {
             var installBtn = document.getElementById('installBtn');
+            var openAppBtn = document.getElementById('openAppBtn');
             var dismissBtn = document.getElementById('installDismiss');
             if (installBtn) {
                 installBtn.addEventListener('click', handleInstallRequest);
+            }
+            if (openAppBtn) {
+                openAppBtn.addEventListener('click', function () {
+                    location.href = 'app.html';
+                });
             }
             if (dismissBtn) {
                 dismissBtn.addEventListener('click', function () {
