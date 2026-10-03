@@ -85,6 +85,8 @@
       .ocr-st{font-weight:700;padding:0 6px;white-space:nowrap}
       .ocr-st.st-ok{color:#059669}.ocr-st.st-unknown{color:#d97706}.ocr-st.st-inactive{color:#ef4444}
       .ocr-val{max-width:150px}
+      .ocr-kind{max-width:110px;padding:8px;font-size:14px}
+      .ocr-edit{background:#f59e0b;color:#111827;border:none;border-radius:8px;padding:8px 10px;font-size:13px;font-weight:700;cursor:pointer}
     `;
     const el = document.createElement('style');
     el.textContent = css;
@@ -174,6 +176,18 @@
               </div>
             </div>
 
+            <div class="ow-section">
+              <div style="display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+                <div>
+                  <h3>Recently Added</h3>
+                  <p>Ditsenyo tse di sa tswang go tsenngwa mo registry, segolo thata tse di tswang mo ditshwantshong. Recently added records, especially from photo imports.</p>
+                </div>
+                <button class="ow-btn ow-btn-grey" id="newAddRefresh" style="width:auto;margin-top:0">Tsosolosa (Refresh)</button>
+              </div>
+              <div class="ow-msg" id="newAddMsg"></div>
+              <div id="newAddList" class="ow-comments"></div>
+            </div>
+
             <div class="ow-section" id="owAccounts" style="display:none">
               <h3>Di-akhaonto (Accounts)</h3>
               <p>Tlhama kgotsa tlosa batho ba ba ka tsenang mo admin.</p>
@@ -205,6 +219,7 @@
     document.getElementById('cmtAdd').onclick = addComment;
     document.getElementById('calfSave').onclick = saveCalf;
     document.getElementById('auCreate').onclick = createUser;
+    document.getElementById('newAddRefresh').onclick = loadNewlyAdded;
 
     buildScan();
     buildAnimEditor();
@@ -257,6 +272,7 @@
     if (typeof window.renderSick === 'function') window.renderSick();
     if (typeof window.renderDead === 'function') window.renderDead();
     loadHerd();
+    loadNewlyAdded();
     if (F.isSuperSuper()) loadUsers();
   }
 
@@ -276,7 +292,10 @@
       herd = await F.loadHerd();
       herdById = {};
       document.getElementById('owHerd').innerHTML = herd.map((a) => `<option value="${esc(a.id)}">`).join('');
-      herd.forEach((a) => { herdById[a.id] = a; });
+      herd.forEach((a) => {
+        herdById[a.id] = a;
+        herdById[String(a.id || '').trim().toUpperCase()] = a;
+      });
     } catch (e) {
       msg('linMsg', 'Ga go kgonege go laisa dikgomo. Netefatsa inthanete. (Could not load. Check connection.)', false);
     }
@@ -424,8 +443,8 @@
         <span class="ow-x" id="ocrClose">&times;</span>
         <h2>Bala Dinomoro (Scan numbers)</h2>
         <p>Tsea senepe kgotsa o rekote lentswe la dinomoro, mme o tlhole pele o boloka. (Photo or voice note, then check before saving.)</p>
-        <input type="file" id="ocrFile" accept="image/*" style="display:none">
-        <button class="ow-btn" id="ocrPick">\U0001F4F7 Tsea senepe (Take / choose photo)</button>
+        <input type="file" id="ocrFile" accept="image/*" multiple style="display:none">
+        <button class="ow-btn" id="ocrPick">📷 Tsea ditshwantsho (Choose photo sheet(s))</button>
         <input type="file" id="ocrAudio" accept="audio/*" style="display:none">
         <button class="ow-btn ow-btn-grey" id="ocrVoice" style="margin-top:8px">🎤 Dirisa lentswe (Use a voice note)</button>
         <div class="ow-msg" id="ocrMsg"></div>
@@ -436,8 +455,9 @@
             <input type="date" id="ocrDate" class="ow-input">
             <div class="ow-msg" id="ocrDateNote"></div>
           </div>
+          <div class="ow-inline-help">Review the scanned values, use the Edit button if a number needs fixing, and switch the type to Calf for letter-marked calf entries before applying.</div>
           <div id="ocrRows" class="ow-list"></div>
-          <button class="ow-btn" id="ocrApply">Tshwaya Teng (Mark present)</button>
+          <button class="ow-btn" id="ocrApply">Tshwaya Teng + Tlatsa Registry (Mark present + update registry)</button>
         </div>
       </div>`;
     document.body.appendChild(m);
@@ -458,6 +478,28 @@
     if (!herd.length) { try { await loadHerd(); } catch (e) {} }
   }
   function closeScan() { document.getElementById('ocrModal').classList.add('ow-hidden'); }
+
+  function scanRowKind(value) {
+    const v = String(value || '').trim().toUpperCase();
+    const known = herdById[v];
+    if (known && known.group === 'calves') return 'calf';
+    if (/^[A-Z]+$/.test(v)) return 'calf';
+    if (/^[0-9]{1,2}$/.test(v)) return 'calf';
+    if (/^[A-Z0-9-]*[A-Z][A-Z0-9-]*$/.test(v)) return 'calf';
+    return 'cow';
+  }
+
+  function mergeScanRows(numbers) {
+    const seen = new Set(scanRows.map(function (r) { return String(r.value || '').trim().toUpperCase(); }));
+    numbers.forEach(function (n) {
+      const value = String(n || '').trim();
+      if (!value) return;
+      const key = value.toUpperCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      scanRows.push({ value: value, present: true, kind: scanRowKind(value) });
+    });
+  }
 
   function fileToScaledBase64(file, maxDim, quality) {
     return new Promise(function (resolve, reject) {
@@ -503,7 +545,10 @@
       return;
     }
     clearMsg('ocrMsg');
-    scanRows = res.numbers.map(function (n) { return { value: String(n), present: true }; });
+    scanRows = res.numbers.map(function (n) {
+      const value = String(n || '').trim();
+      return { value: value, present: true, kind: scanRowKind(value) };
+    });
     scanDate = (res.date && /^\d{4}-\d{2}-\d{2}$/.test(res.date)) ? res.date : '';
     var di0 = document.getElementById('dateInput');
     var odIn = document.getElementById('ocrDate');
@@ -518,42 +563,65 @@
   }
 
   async function onPhoto(e) {
-    const file = e.target.files && e.target.files[0];
+    const files = Array.from((e.target.files || []));
     e.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
     document.getElementById('ocrReview').style.display = 'none';
-    msg('ocrMsg', 'Go bala senepe... (Reading the photo, please wait.)', true);
-    let b64;
-    try { b64 = await fileToScaledBase64(file, 1600, 0.7); }
-    catch (err) { msg('ocrMsg', 'Ga go kgonege go bula senepe. (Could not open the photo.)', false); return; }
-    const res = await F.scanNumbers(b64, 'image/jpeg');
-    if (authFailed(res)) { closeScan(); return; }
-    if (!res.ok) { msg('ocrMsg', 'Phoso: ' + (res.error || ''), false); return; }
-    if (!res.numbers || !res.numbers.length) { msg('ocrMsg', 'Ga go na dinomoro tse di fumanweng. Leka senepe se sengwe. (No numbers found. Try another photo.)', false); return; }
+    msg('ocrMsg', 'Go bala ditshwantsho... (Reading the photo sheets, please wait.)', true);
+    scanRows = [];
+    scanDate = '';
+    let dateConflicts = false;
+    for (const file of files) {
+      let b64;
+      try { b64 = await fileToScaledBase64(file, 1600, 0.7); }
+      catch (err) { msg('ocrMsg', 'Ga go kgonege go bula sengwe sa ditshwantsho. (Could not open one of the photos.)', false); return; }
+      const res = await F.scanNumbers(b64, 'image/jpeg');
+      if (authFailed(res)) { closeScan(); return; }
+      if (!res.ok) { msg('ocrMsg', 'Phoso: ' + (res.error || ''), false); return; }
+      if (res.numbers && res.numbers.length) mergeScanRows(res.numbers);
+      const thisDate = (res.date && /^\d{4}-\d{2}-\d{2}$/.test(res.date)) ? res.date : '';
+      if (thisDate && !scanDate) scanDate = thisDate;
+      else if (thisDate && scanDate && thisDate !== scanDate) dateConflicts = true;
+    }
+    if (!scanRows.length) { msg('ocrMsg', 'Ga go na dinomoro tse di fumanweng. Leka senepe se sengwe. (No numbers found. Try another photo.)', false); return; }
     clearMsg('ocrMsg');
-    scanRows = res.numbers.map(function (n) { return { value: String(n), present: true }; });
-    scanDate = (res.date && /^\d{4}-\d{2}-\d{2}$/.test(res.date)) ? res.date : '';
     var di0 = document.getElementById('dateInput');
     var odIn = document.getElementById('ocrDate');
     if (odIn) odIn.value = scanDate || (di0 ? di0.value : '');
     var dnote = document.getElementById('ocrDateNote');
-    if (dnote) dnote.textContent = scanDate
-      ? 'Letsatsi le badilwe senepeng. (Date read from the sheet.)'
-      : 'Ga go letsatsi le le fumanweng, netefatsa le le fa godimo. (No date found, confirm above.)';
+    if (dnote) dnote.textContent = dateConflicts
+      ? 'Ditshwantsho di ne di na le matsatsi a a farologaneng; netefatsa le le fa godimo. (The sheets showed conflicting dates; confirm above.)'
+      : (scanDate ? 'Letsatsi le badilwe senepeng. (Date read from the sheet.)' : 'Ga go letsatsi le le fumanweng, netefatsa le le fa godimo. (No date found, confirm above.)');
     renderRows();
     document.getElementById('ocrReview').style.display = '';
   }
 
   function rowStatus(v) {
-    const a = herdById[(v || '').trim()];
+    const a = herdById[String(v || '').trim().toUpperCase()];
     if (!a) return { cls: 'st-unknown', label: '?' };
     if (a.is_inactive) return { cls: 'st-inactive', label: '\u2717' };
     return { cls: 'st-ok', label: '\u2713' };
   }
   function updateSummary() {
     const total = scanRows.length;
-    const matched = scanRows.filter(function (r) { const a = herdById[(r.value || '').trim()]; return a && !a.is_inactive; }).length;
-    document.getElementById('ocrSummary').textContent = 'E fumane ' + total + ', tse ' + matched + ' di tshwana le leruo. (Found ' + total + ', ' + matched + ' match the herd.)';
+    const matched = scanRows.filter(function (r) {
+      const a = herdById[String(r.value || '').trim().toUpperCase()];
+      return a && !a.is_inactive;
+    }).length;
+    const calves = scanRows.filter(function (r) { return r.kind === 'calf'; }).length;
+    const fresh = scanRows.filter(function (r) {
+      const a = herdById[String(r.value || '').trim().toUpperCase()];
+      return !a;
+    }).length;
+    document.getElementById('ocrSummary').textContent = 'E fumane ' + total + ', tse ' + matched + ' di tshwana le leruo, tse ' + fresh + ' di ntšhwa, mme tse ' + calves + ' di beilwe mo calves. (Found ' + total + ', ' + matched + ' match the herd, ' + fresh + ' are new, and ' + calves + ' are set as calves.)';
+  }
+  function editScanRow(i) {
+    const current = (scanRows[i] && scanRows[i].value) ? scanRows[i].value : '';
+    const next = prompt('Edit scanned number', current);
+    if (next === null) return;
+    scanRows[i].value = String(next).trim();
+    scanRows[i].kind = scanRowKind(scanRows[i].value);
+    renderRows();
   }
   function renderRows() {
     const box = document.getElementById('ocrRows');
@@ -563,6 +631,8 @@
         + '<span style="display:flex;align-items:center;gap:8px;flex:1">'
         + '<input type="checkbox" class="ocr-ck" data-i="' + i + '" ' + (r.present ? 'checked' : '') + ' style="width:20px;height:20px">'
         + '<input type="text" class="ow-input ocr-val" data-i="' + i + '" value="' + esc(r.value) + '" style="padding:8px;font-size:15px">'
+        + '<select class="ow-input ocr-kind" data-i="' + i + '"><option value="cow"' + (r.kind === 'cow' ? ' selected' : '') + '>Cow</option><option value="calf"' + (r.kind === 'calf' ? ' selected' : '') + '>Calf</option></select>'
+        + '<button type="button" class="ocr-edit" data-i="' + i + '">Edit</button>'
         + '</span>'
         + '<span class="ocr-st ' + st.cls + '">' + st.label + '</span>'
         + '</div>';
@@ -574,8 +644,15 @@
         const st = rowStatus(inp.value);
         const el = inp.closest('.ow-uitem').querySelector('.ocr-st');
         el.className = 'ocr-st ' + st.cls; el.textContent = st.label;
+        scanRows[+inp.dataset.i].kind = scanRowKind(inp.value);
         updateSummary();
       };
+    });
+    box.querySelectorAll('.ocr-kind').forEach(function (sel) {
+      sel.onchange = function () { scanRows[+sel.dataset.i].kind = sel.value; updateSummary(); };
+    });
+    box.querySelectorAll('.ocr-edit').forEach(function (btn) {
+      btn.onclick = function () { editScanRow(+btn.dataset.i); };
     });
     updateSummary();
   }
@@ -592,32 +669,54 @@
     return true;
   }
 
-  function applyScan() {
+  async function applyScan() {
     const matched = [], unmatched = [];
     scanRows.forEach(function (r) {
       const v = (r.value || '').trim();
       if (!r.present || !v) return;
-      if (herdById[v] && !herdById[v].is_inactive) matched.push(v); else unmatched.push(v);
+      const existing = herdById[String(v).toUpperCase()];
+      if (existing && !existing.is_inactive) matched.push(existing.id);
+      else unmatched.push({ value: v, kind: r.kind || scanRowKind(v) });
     });
-    if (!matched.length) { msg('ocrMsg', 'Ga go na nomoro e e tshwanang le leruo. (Nothing matched the herd.)', false); return; }
+    if (!matched.length && !unmatched.length) { msg('ocrMsg', 'Ga go na nomoro e e tshwanetseng go tsenngwa. (Nothing selected to apply.)', false); return; }
     var odA = document.getElementById('ocrDate');
     var chosenDate = odA ? odA.value : '';
     if (chosenDate && /^\d{4}-\d{2}-\d{2}$/.test(chosenDate)) {
       var diA = document.getElementById('dateInput');
       if (diA) { diA.value = chosenDate; if (typeof updateDateDisplay === 'function') updateDateDisplay(); }
     }
-    if (!applyPresent(matched)) { msg('ocrMsg', 'Ga go kgonege go tshwaya mo skrineng se. (Could not mark on this screen.)', false); return; }
-    if (typeof window.auditLog === 'function') window.auditLog('scan_applied', null, matched.length + ' marked' + (chosenDate ? ', ' + chosenDate : ''));
+    const created = [];
+    const failed = [];
+    for (const row of unmatched) {
+      const res = await F.registerCalf({
+        id: row.value,
+        group: row.kind === 'calf' ? 'calves' : undefined,
+        comment: 'Imported from register photo' + (chosenDate ? (' on ' + chosenDate) : '')
+      });
+      if (authFailed(res)) { closeScan(); return; }
+      if (res && res.ok) created.push(row.value);
+      else failed.push(row.value + (res && res.error ? (' (' + res.error + ')') : ''));
+    }
+    if (created.length) {
+      await loadHerd();
+      if (typeof LIVESTOCK_DATA !== 'undefined') LIVESTOCK_DATA = herd.slice();
+      if (typeof window.loadGroup === 'function') window.loadGroup();
+    }
+    const allPresent = matched.concat(created);
+    if (!allPresent.length) { msg('ocrMsg', failed.length ? ('Ga go na tsotlhe tse di tsentsweng. Failed: ' + failed.join(', ')) : 'Ga go na nomoro e e tshwanang le leruo. (Nothing matched the herd.)', false); return; }
+    if (!applyPresent(allPresent)) { msg('ocrMsg', 'Ga go kgonege go tshwaya mo skrineng se. (Could not mark on this screen.)', false); return; }
+    if (typeof window.auditLog === 'function') window.auditLog('scan_applied', null, allPresent.length + ' marked' + (created.length ? (', ' + created.length + ' added to registry') : '') + (chosenDate ? ', ' + chosenDate : ''));
     // push straight to the shared cloud register so it lands on every phone
     if (typeof window.syncAttendanceCloud === 'function') {
       var sdate = (typeof selectedDate !== 'undefined') ? selectedDate : (chosenDate || '');
       window.syncAttendanceCloud(sdate).then(function (r) {
-        if (r && r.ok) msg('ocrMsg', (matched.length + ' di tshwailwe + di romilwe go difounu tsotlhe. (' + matched.length + ' marked + synced to all phones.)'), true);
+        if (r && r.ok) msg('ocrMsg', (allPresent.length + ' di tshwailwe + di romilwe go difounu tsotlhe. (' + allPresent.length + ' marked + synced to all phones.)'), true);
       });
     }
-    let t = matched.length + ' di tshwailwe teng. (' + matched.length + ' marked present.)';
+    let t = allPresent.length + ' di tshwailwe teng. (' + allPresent.length + ' marked present.)';
     if (chosenDate) t += ' Letsatsi: ' + chosenDate + '.';
-    if (unmatched.length) t += ' Tse di sa tshwanang: ' + unmatched.join(', ');
+    if (created.length) t += ' Tse di engaditsweng mo registry: ' + created.join(', ') + '.';
+    if (failed.length) t += ' Tse di paletsweng: ' + failed.join(', ') + '.';
     msg('ocrMsg', t, true);
     document.getElementById('ocrReview').style.display = 'none';
   }
@@ -836,10 +935,46 @@
       attendance_saved: 'Palo e bolokilwe (Attendance saved)',
       scan_applied: 'Senepe se badilwe (Scan applied)',
       calf_added: 'Namane e tsentswe (Calf added)',
+      registry_added: 'Registry e engaditswe (Registry added)',
       sold: 'Rekisitswe (Sold)',
       died: 'Sule (Died)'
     };
     return map[a] || a;
+  }
+  function recentAddedKind(e) {
+    const detail = String((e && e.detail) || '').toLowerCase();
+    if (detail.indexOf('calf') >= 0) return 'Calf';
+    if (detail.indexOf('cow') >= 0) return 'Cow';
+    return 'Animal';
+  }
+  async function loadNewlyAdded() {
+    const list = document.getElementById('newAddList');
+    if (!list) return;
+    list.innerHTML = '<div class="ow-meta">Go a laiswa... (Loading...)</div>';
+    clearMsg('newAddMsg');
+    const res = await F.getAudit();
+    if (authFailed(res)) return;
+    if (!res.ok) { list.innerHTML = ''; msg('newAddMsg', 'Phoso: ' + (res.error || ''), false); return; }
+    const ev = (res.events || []).filter(function (e) {
+      return e && e.livestock_id && (e.action === 'registry_added' || e.action === 'calf_added' || e.source === 'photo_import');
+    }).slice(0, 30);
+    if (!ev.length) {
+      list.innerHTML = '<div class="ow-meta">Ga go na tse di sa tswang go engadiwa. (No recent additions yet.)</div>';
+      return;
+    }
+    list.innerHTML = ev.map(function (e) {
+      const when = e.ts ? new Date(e.ts).toLocaleString('en-ZA') : '';
+      const who = esc(e.actor || '');
+      const src = esc(e.source || 'owner');
+      const tag = esc(e.livestock_id || '');
+      const kind = esc(recentAddedKind(e));
+      return '<div class="ow-comment">'
+        + '<strong>' + tag + '</strong>'
+        + '<div class="ow-cmeta">Type: ' + kind + ' · Added by: ' + who + '</div>'
+        + '<div class="ow-cmeta">Source: ' + src + ' · Date added: ' + esc(when) + '</div>'
+        + (e.detail ? ('<div class="ow-cmeta">' + esc(e.detail) + '</div>') : '')
+        + '</div>';
+    }).join('');
   }
   async function loadAudit() {
     const list = document.getElementById('auList');

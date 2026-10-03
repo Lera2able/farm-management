@@ -35,12 +35,15 @@ export function getAdminClient() {
 }
 
 export function groupForId(id: string) {
-  const s = String(id ?? "");
+  const s = String(id ?? "").trim().toUpperCase();
   if (s.startsWith("11")) return "11";
   if (s.startsWith("55")) return "55";
   if (s.startsWith("56")) return "56";
   if (s.startsWith("58")) return "58";
   if (s.startsWith("72")) return "72";
+  if (/^[A-Z]+$/.test(s)) return "calves";
+  if (/^[0-9]{1,2}$/.test(s)) return "calves";
+  if (/^[A-Z0-9-]*[A-Z][A-Z0-9-]*$/.test(s)) return "calves";
   if (/^[A-Za-z]/.test(s)) return "special";
   return "other";
 }
