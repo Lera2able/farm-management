@@ -97,6 +97,7 @@
         var ADMIN_URL = 'https://thgtdaxnsobxgykvzhni.supabase.co/functions/v1/farm-admin';
         var PUBKEY = 'sb_publishable_lIoB-OtLPFKmzzYs_EJS_g_OpavXR21';
         var INSTALL_DISMISS_KEY = 'khumotaka_install_dismissed';
+        var OFFLINE_READY_KEY = 'khumotaka_offline_ready';
         var deferredInstallPrompt = null;
         (function () {
             try {
@@ -107,6 +108,28 @@
         })();
         function isStandalone() {
             return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        }
+        function isOfflineReady() {
+            try { return localStorage.getItem(OFFLINE_READY_KEY) === '1'; } catch (e) { return false; }
+        }
+        async function prepareOfflineApp() {
+            if (!('serviceWorker' in navigator)) return false;
+            try {
+                await navigator.serviceWorker.register('service-worker.js');
+                await navigator.serviceWorker.ready;
+                await Promise.all([
+                    fetch('app.html', { cache: 'reload' }).catch(function () { return null; }),
+                    fetch('db.js', { cache: 'reload' }).catch(function () { return null; }),
+                    fetch('sync.js', { cache: 'reload' }).catch(function () { return null; }),
+                    fetch('supabase-data.js', { cache: 'reload' }).catch(function () { return null; }),
+                    fetch('owner-ui.js', { cache: 'reload' }).catch(function () { return null; }),
+                    fetch('manifest.json', { cache: 'reload' }).catch(function () { return null; })
+                ]);
+                localStorage.setItem(OFFLINE_READY_KEY, '1');
+                return true;
+            } catch (e) {
+                return false;
+            }
         }
         function isIosSafari() {
             var ua = window.navigator.userAgent || '';
@@ -175,10 +198,12 @@
                     refreshInstallNote();
                 });
             }
+            prepareOfflineApp().catch(function () {});
             refreshInstallNote();
         });
         function enterRegister() {
             if (localStorage.getItem('khumotaka_access') === 'granted') { location.href = 'app.html'; return; }
+            if (!navigator.onLine && isOfflineReady()) { location.href = 'app.html'; return; }
             document.getElementById('gerr').textContent = '';
             document.getElementById('gpw').value = '';
             document.getElementById('gate').classList.add('show');
@@ -195,6 +220,11 @@
             var go = document.getElementById('ggo');
             if (!pw) { err.textContent = 'Tsenya password. (Enter a password.)'; return; }
             go.disabled = true; go.textContent = 'Go a sekasekwa...'; err.textContent = '';
+            if (!navigator.onLine && isOfflineReady()) {
+                localStorage.setItem('khumotaka_access', 'granted');
+                location.href = 'app.html';
+                return;
+            }
             try {
                 var r = await fetch(ADMIN_URL, {
                     method: 'POST',
@@ -202,9 +232,20 @@
                     body: JSON.stringify({ action: 'login', password: pw })
                 });
                 var d = await r.json();
-                if (d && d.ok) { localStorage.setItem('khumotaka_access', 'granted'); location.href = 'app.html'; }
+                if (d && d.ok) {
+                    localStorage.setItem('khumotaka_access', 'granted');
+                    try { localStorage.setItem(OFFLINE_READY_KEY, '1'); } catch (e2) {}
+                    location.href = 'app.html';
+                }
                 else { err.textContent = 'Password e phoso. (Wrong password.)'; go.disabled = false; go.textContent = 'Tsena (Enter)'; }
-            } catch (e) { err.textContent = 'Network error. Leka gape. (Try again.)'; go.disabled = false; go.textContent = 'Tsena (Enter)'; }
+            } catch (e) {
+                if (isOfflineReady()) {
+                    err.textContent = 'No internet, but this phone is prepared for offline use. Tap Enter again.';
+                } else {
+                    err.textContent = 'Network error. Leka gape. (Try again online once so this phone can prepare offline mode.)';
+                }
+                go.disabled = false; go.textContent = 'Tsena (Enter)';
+            }
         }
     </script>
 </body>
