@@ -3298,7 +3298,7 @@
             return null;
         }
         async function loadStatsData() {
-            const totalActive = LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; }).length;
+            const totalActive = farmStockRows().length;
             const sold = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive && String(l.status).toLowerCase() === 'sold'; }).length;
             const died = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive && String(l.status).toLowerCase() === 'died'; }).length;
             const inactive = LIVESTOCK_DATA.filter(function (l) { return l.is_inactive; }).length;
@@ -3307,7 +3307,7 @@
 
             const map = {};
             // recent days saved on this device
-            const byDate = presentByDate();
+            const byDate = allPresentByDate();
             Object.keys(byDate).forEach(function (ymd) {
                 map[ymd] = { present: Object.keys(byDate[ymd] || {}).length, total: totalActive, label: formatDate(ymd), src: 'local' };
             });
@@ -3321,16 +3321,20 @@
                     await wb.xlsx.load(await resp.arrayBuffer());
                     wb.eachSheet(function (ws) {
                         const name = ws.name;
-                        if (/dikgomo master/i.test(name) || /worker/i.test(name)) return;
-                        const a1 = ws.getCell(1, 1).value, b1 = ws.getCell(1, 2).value;
-                        if (String(a1 == null ? '' : a1).trim() !== 'Tag No' || String(b1 == null ? '' : b1).trim() !== 'Status') return;
+                        if (/dikgomo master/i.test(name) || /farm stock master/i.test(name) || /worker/i.test(name)) return;
+                        const a1 = ws.getCell(1, 1).value, b1 = ws.getCell(1, 2).value, c1 = ws.getCell(1, 3).value;
+                        const oldStyle = String(a1 == null ? '' : a1).trim() === 'Tag No' && String(b1 == null ? '' : b1).trim() === 'Status';
+                        const fullStyle = String(a1 == null ? '' : a1).trim() === 'Stock Type'
+                            && String(b1 == null ? '' : b1).trim() === 'Tag No'
+                            && String(c1 == null ? '' : c1).trim() === 'Status';
+                        if (!oldStyle && !fullStyle) return;
                         let present = 0, total = 0;
                         const last = ws.rowCount;
                         for (let r = 2; r <= last; r++) {
-                            const tag = ws.getCell(r, 1).value;
+                            const tag = ws.getCell(r, fullStyle ? 2 : 1).value;
                             if (tag == null || String(tag).trim() === '') continue;
                             total++;
-                            const st = String(ws.getCell(r, 2).value == null ? '' : ws.getCell(r, 2).value).trim().toLowerCase();
+                            const st = String(ws.getCell(r, fullStyle ? 3 : 2).value == null ? '' : ws.getCell(r, fullStyle ? 3 : 2).value).trim().toLowerCase();
                             if (st === 'present') present++;
                         }
                         if (total === 0) return;
@@ -4140,12 +4144,12 @@
 
 
         // Download Excel Report
-        function showExcelDateModal() {
+        async function showExcelDateModal() {
             const sel = document.getElementById('excelDateSelect');
-            const byDate = presentByDate();
-            const dates = Object.keys(byDate).sort().reverse();
+            if (!statsCache) await loadStatsData();
+            const dates = (statsCache && Array.isArray(statsCache.perDate) ? statsCache.perDate.slice().reverse() : []);
             let opts = '<option value="all">Matsatsi otlhe (All dates)</option>';
-            dates.forEach(function (ymd) { opts += '<option value="' + ymd + '">' + formatDate(ymd) + '</option>'; });
+            dates.forEach(function (d) { opts += '<option value="' + d.date + '">' + d.label + '</option>'; });
             sel.innerHTML = opts;
             document.getElementById('excelModal').classList.remove('hidden');
         }
