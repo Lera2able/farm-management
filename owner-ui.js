@@ -446,7 +446,7 @@
         <input type="file" id="ocrFile" accept="image/*" multiple style="display:none">
         <button class="ow-btn" id="ocrPick">📷 Tsea ditshwantsho (Choose photo sheet(s))</button>
         <input type="file" id="ocrAudio" accept="audio/*" style="display:none">
-        <button class="ow-btn ow-btn-grey" id="ocrVoice" style="margin-top:8px">🎤 Dirisa lentswe (Use a voice note)</button>
+        <button class="ow-btn ow-btn-grey" id="ocrVoice" style="margin-top:8px">🎤 Dirisa lentswe (Use voice / live mic)</button>
         <div class="ow-msg" id="ocrMsg"></div>
         <div id="ocrReview" style="display:none">
           <div class="ow-meta" id="ocrSummary"></div>
@@ -466,7 +466,10 @@
     document.getElementById('ocrPick').onclick = function () { document.getElementById('ocrFile').click(); };
     document.getElementById('ocrFile').addEventListener('change', onPhoto);
     document.getElementById('ocrApply').onclick = applyScan;
-    document.getElementById('ocrVoice').onclick = function () { document.getElementById('ocrAudio').click(); };
+    document.getElementById('ocrVoice').onclick = function () {
+      if (getSpeechRecognitionCtor()) startLiveVoice();
+      else document.getElementById('ocrAudio').click();
+    };
     document.getElementById('ocrAudio').addEventListener('change', onVoice);
   }
 
@@ -528,6 +531,168 @@
     });
   }
 
+  function isConfigError(res) {
+    const err = String((res && res.error) || '');
+    return !!(res && (res.code === 'CONFIG' || /Missing environment variable: OPENAI_API_KEY/i.test(err) || /not configured/i.test(err)));
+  }
+
+  let tesseractLoader = null;
+  function ensureTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (tesseractLoader) return tesseractLoader;
+    tesseractLoader = new Promise(function (resolve, reject) {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      s.async = true;
+      s.onload = function () {
+        if (window.Tesseract) resolve(window.Tesseract);
+        else reject(new Error('ocr library missing'));
+      };
+      s.onerror = function () { reject(new Error('ocr load failed')); };
+      document.head.appendChild(s);
+    });
+    return tesseractLoader;
+  }
+
+  function wordsToDigits(text) {
+    const map = {
+      zero: '0', oh: '0', one: '1', two: '2', three: '3', four: '4', five: '5',
+      six: '6', seven: '7', eight: '8', nine: '9', dash: '-', hyphen: '-', minus: '-'
+    };
+    return String(text || '').replace(
+      /\b(zero|oh|one|two|three|four|five|six|seven|eight|nine|dash|hyphen|minus)\b(?:[\s,]+(zero|oh|one|two|three|four|five|six|seven|eight|nine|dash|hyphen|minus)\b)+/gi,
+      function (m) {
+        return m.split(/[\s,]+/).map(function (part) { return map[String(part || '').toLowerCase()] || part; }).join('');
+      }
+    );
+  }
+
+  function toIsoDate(day, month, year) {
+    const d = String(day || '').padStart(2, '0');
+    const m = String(month || '').padStart(2, '0');
+    const y = String(year || '');
+    if (!/^\d{4}$/.test(y) || !/^\d{2}$/.test(m) || !/^\d{2}$/.test(d)) return '';
+    return y + '-' + m + '-' + d;
+  }
+
+  function extractScanDate(text) {
+    const raw = wordsToDigits(text).replace(/[\r\n]+/g, ' ');
+    const numeric = raw.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
+    if (numeric) {
+      const year = numeric[3].length === 2 ? ('20' + numeric[3]) : numeric[3];
+      return toIsoDate(numeric[1], numeric[2], year);
+    }
+    const months = {
+      january: '01', february: '02', march: '03', april: '04', may: '05', june: '06',
+      july: '07', august: '08', september: '09', october: '10', november: '11', december: '12'
+    };
+    const lower = raw.toLowerCase();
+    let named = lower.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})\b/);
+    if (named) return toIsoDate(named[1], months[named[2]], named[3]);
+    named = lower.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b/);
+    if (named) return toIsoDate(named[1], months[named[2]], '2026');
+    return '';
+  }
+
+  function extractScanNumbers(text) {
+    const normalized = wordsToDigits(text)
+      .toUpperCase()
+      .replace(/[|]/g, '1')
+      .replace(/[O]/g, '0');
+    const matches = normalized.match(/\b[A-Z]{1,3}\b|\b\d{1,5}(?:-\d{1,3})?\b/g) || [];
+    const out = [];
+    const seen = new Set();
+    matches.forEach(function (token) {
+      const value = String(token || '').trim();
+      if (!value) return;
+      const ok = /^[A-Z]{1,3}$/.test(value)
+        || /^\d{1,2}$/.test(value)
+        || /^\d{3}$/.test(value)
+        || /^\d{4}$/.test(value)
+        || (/^\d{5}$/.test(value) && /^(11|55|56|58|72|73|74|76|31)\d{3}$/.test(value))
+        || /^\d{2,3}-\d{1,3}$/.test(value);
+      if (!ok) return;
+      if (seen.has(value)) return;
+      seen.add(value);
+      out.push(value);
+    });
+    return out;
+  }
+
+  async function scanPhotoLocal(file) {
+    const Tesseract = await ensureTesseract();
+    const result = await Tesseract.recognize(file, 'eng');
+    const text = String(result && result.data && result.data.text || '');
+    return {
+      ok: true,
+      numbers: extractScanNumbers(text),
+      date: extractScanDate(text) || null,
+      text: text
+    };
+  }
+
+  function getSpeechRecognitionCtor() {
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+
+  function applyVoiceTranscript(transcript) {
+    const parsedText = wordsToDigits(transcript);
+    const numbers = extractScanNumbers(parsedText);
+    const date = extractScanDate(parsedText);
+    if (!numbers.length) {
+      msg('ocrMsg', 'Ga go na dinomoro tse di utlwilweng. (No numbers heard.)' + (transcript ? ' “' + transcript + '”' : ''), false);
+      return;
+    }
+    clearMsg('ocrMsg');
+    scanRows = numbers.map(function (n) {
+      const value = String(n || '').trim();
+      return { value: value, present: true, kind: scanRowKind(value) };
+    });
+    scanDate = date || '';
+    var di0 = document.getElementById('dateInput');
+    var odIn = document.getElementById('ocrDate');
+    if (odIn) odIn.value = scanDate || (di0 ? di0.value : '');
+    var dnote = document.getElementById('ocrDateNote');
+    if (dnote) dnote.textContent = scanDate
+      ? 'Letsatsi le utlwilwe mo lentsweng. (Date heard in the voice input.)'
+      : 'Ga go letsatsi le le utlwilweng, netefatsa le le fa godimo. (No date heard, confirm above.)';
+    renderRows();
+    document.getElementById('ocrReview').style.display = '';
+    msg('ocrMsg', 'Se se utlwilweng: “' + transcript + '”', true);
+  }
+
+  function startLiveVoice() {
+    const SR = getSpeechRecognitionCtor();
+    if (!SR) {
+      document.getElementById('ocrAudio').click();
+      return;
+    }
+    document.getElementById('ocrReview').style.display = 'none';
+    msg('ocrMsg', 'Bua dinomoro jaanong... (Speak the numbers now.)', true);
+    const rec = new SR();
+    rec.lang = 'en-ZA';
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    let done = false;
+    rec.onresult = function (event) {
+      done = true;
+      const transcript = Array.from(event.results || []).map(function (res) {
+        return res && res[0] ? res[0].transcript : '';
+      }).join(' ').trim();
+      applyVoiceTranscript(transcript);
+    };
+    rec.onerror = function () {
+      done = true;
+      msg('ocrMsg', 'Ga go kgonege go reetsa lentswe mo browser eno. (Could not use live voice on this browser.)', false);
+    };
+    rec.onend = function () {
+      if (!done) msg('ocrMsg', 'Ga go na lentswe le le utlwilweng. (No voice captured.)', false);
+    };
+    try { rec.start(); }
+    catch (e) { msg('ocrMsg', 'Ga go kgonege go simolola lentswe. (Could not start live voice.)', false); }
+  }
+
   async function onVoice(e) {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
@@ -539,6 +704,7 @@
     catch (err) { msg('ocrMsg', 'Ga go kgonege go bula rekoto. (Could not open the recording.)', false); return; }
     const res = await F.scanVoice(b64, file.type || 'audio/m4a');
     if (authFailed(res)) { closeScan(); return; }
+    if (!res.ok && isConfigError(res) && getSpeechRecognitionCtor()) { startLiveVoice(); return; }
     if (!res.ok) { msg('ocrMsg', 'Phoso: ' + (res.error || ''), false); return; }
     if (!res.numbers || !res.numbers.length) {
       msg('ocrMsg', 'Ga go na dinomoro tse di utlwilweng. (No numbers heard.)' + (res.transcript ? ' \u201C' + res.transcript + '\u201D' : ''), false);
@@ -571,11 +737,23 @@
     scanRows = [];
     scanDate = '';
     let dateConflicts = false;
+    let useLocal = false;
     for (const file of files) {
-      let b64;
-      try { b64 = await fileToScaledBase64(file, 1600, 0.7); }
-      catch (err) { msg('ocrMsg', 'Ga go kgonege go bula sengwe sa ditshwantsho. (Could not open one of the photos.)', false); return; }
-      const res = await F.scanNumbers(b64, 'image/jpeg');
+      let res;
+      if (!useLocal) {
+        let b64;
+        try { b64 = await fileToScaledBase64(file, 1600, 0.7); }
+        catch (err) { msg('ocrMsg', 'Ga go kgonege go bula sengwe sa ditshwantsho. (Could not open one of the photos.)', false); return; }
+        res = await F.scanNumbers(b64, 'image/jpeg');
+        if (isConfigError(res)) {
+          useLocal = true;
+          msg('ocrMsg', 'Server scan ga e ise e rulaganngwe; re bala mo browser. (Server scan is not configured yet, using browser scan.)', true);
+        }
+      }
+      if (useLocal) {
+        try { res = await scanPhotoLocal(file); }
+        catch (err) { msg('ocrMsg', 'Ga go kgonege go bala senepe mo browser. (Could not scan the photo in the browser.)', false); return; }
+      }
       if (authFailed(res)) { closeScan(); return; }
       if (!res.ok) { msg('ocrMsg', 'Phoso: ' + (res.error || ''), false); return; }
       if (res.numbers && res.numbers.length) mergeScanRows(res.numbers);

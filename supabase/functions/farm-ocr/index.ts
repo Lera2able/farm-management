@@ -6,7 +6,6 @@ import {
   handleOptions,
   json,
   loadSession,
-  mustEnv,
   readJson,
 } from "../_shared/helpers.ts";
 
@@ -27,7 +26,14 @@ serve(async (req) => {
     const session = await loadSession(supabase, token);
     if (!session) return json(401, { ok: false, code: "AUTH", error: "Not logged in" });
 
-    const apiKey = mustEnv("OPENAI_API_KEY");
+    const apiKey = Deno.env.get("OPENAI_API_KEY") ?? "";
+    if (!apiKey) {
+      return json(200, {
+        ok: false,
+        code: "CONFIG",
+        error: "Photo scanning is not configured on the server yet.",
+      });
+    }
     const baseUrl = Deno.env.get("OPENAI_BASE_URL") ?? "https://api.openai.com/v1";
     const model = Deno.env.get("OPENAI_VISION_MODEL") ?? "gpt-4.1-mini";
 
