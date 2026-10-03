@@ -2,7 +2,7 @@
 class LivestockDB {
     constructor() {
         this.dbName = 'LivestockAttendanceDB';
-        this.version = 1;
+        this.version = 2;
         this.db = null;
     }
 
@@ -43,13 +43,45 @@ class LivestockDB {
                     pendingStore.createIndex('type', 'type', { unique: false });
                     pendingStore.createIndex('synced', 'synced', { unique: false });
                 }
+                const pendingStore = event.target.transaction.objectStore('pendingActions');
+                if (!pendingStore.indexNames.contains('syncStatus')) {
+                    pendingStore.createIndex('syncStatus', 'syncStatus', { unique: false });
+                }
 
                 // Local livestock state (current session)
                 if (!db.objectStoreNames.contains('localState')) {
                     db.createObjectStore('localState', { keyPath: 'livestockId' });
                 }
+
+                // Cached shared data for offline reads
+                if (!db.objectStoreNames.contains('cache')) {
+                    db.createObjectStore('cache', { keyPath: 'key' });
+                }
+
+                // Photo/voice scan drafts kept safely on device until processed
+                if (!db.objectStoreNames.contains('scanDrafts')) {
+                    const draftStore = db.createObjectStore('scanDrafts', {
+                        keyPath: 'id',
+                        autoIncrement: true
+                    });
+                    draftStore.createIndex('kind', 'kind', { unique: false });
+                    draftStore.createIndex('status', 'status', { unique: false });
+                    draftStore.createIndex('createdAt', 'createdAt', { unique: false });
+                }
             };
         });
+    }
+
+    buildSyncMeta(overrides = {}) {
+        return {
+            synced: false,
+            syncStatus: 'pending',
+            syncAttempts: 0,
+            lastSyncError: '',
+            queuedAt: Date.now(),
+            lastSyncAt: null,
+            ...overrides
+        };
     }
 
     // Save shepherd name
@@ -76,8 +108,8 @@ class LivestockDB {
             shepherdName,
             presentLivestock, // Array of livestock IDs that were marked present
             timestamp,
-            synced: false,
-            date: new Date(timestamp).toISOString().split('T')[0]
+            date: new Date(timestamp).toISOString().split('T')[0],
+            ...this.buildSyncMeta()
         };
         
         await store.add(record);
@@ -105,6 +137,37 @@ class LivestockDB {
         const record = await store.get(id);
         if (record) {
             record.synced = true;
+            record.syncStatus = 'synced';
+            record.lastSyncError = '';
+            record.lastSyncAt = Date.now();
+            await store.put(record);
+        }
+        return tx.complete;
+    }
+
+    async markAttendanceFailed(id, error) {
+        const tx = this.db.transaction(['attendance'], 'readwrite');
+        const store = tx.objectStore('attendance');
+        const record = await store.get(id);
+        if (record) {
+            record.synced = false;
+            record.syncStatus = 'failed';
+            record.syncAttempts = (record.syncAttempts || 0) + 1;
+            record.lastSyncError = String(error || 'sync failed');
+            record.lastSyncAt = Date.now();
+            await store.put(record);
+        }
+        return tx.complete;
+    }
+
+    async markAttendanceSyncing(id) {
+        const tx = this.db.transaction(['attendance'], 'readwrite');
+        const store = tx.objectStore('attendance');
+        const record = await store.get(id);
+        if (record) {
+            record.syncStatus = 'syncing';
+            record.syncAttempts = (record.syncAttempts || 0) + 1;
+            record.lastSyncAt = Date.now();
             await store.put(record);
         }
         return tx.complete;
@@ -119,7 +182,7 @@ class LivestockDB {
             type, // 'add_livestock', 'sold', 'died'
             data,
             timestamp: Date.now(),
-            synced: false
+            ...this.buildSyncMeta()
         };
         
         await store.add(action);
@@ -147,6 +210,37 @@ class LivestockDB {
         const record = await store.get(id);
         if (record) {
             record.synced = true;
+            record.syncStatus = 'synced';
+            record.lastSyncError = '';
+            record.lastSyncAt = Date.now();
+            await store.put(record);
+        }
+        return tx.complete;
+    }
+
+    async markActionFailed(id, error) {
+        const tx = this.db.transaction(['pendingActions'], 'readwrite');
+        const store = tx.objectStore('pendingActions');
+        const record = await store.get(id);
+        if (record) {
+            record.synced = false;
+            record.syncStatus = 'failed';
+            record.syncAttempts = (record.syncAttempts || 0) + 1;
+            record.lastSyncError = String(error || 'sync failed');
+            record.lastSyncAt = Date.now();
+            await store.put(record);
+        }
+        return tx.complete;
+    }
+
+    async markActionSyncing(id) {
+        const tx = this.db.transaction(['pendingActions'], 'readwrite');
+        const store = tx.objectStore('pendingActions');
+        const record = await store.get(id);
+        if (record) {
+            record.syncStatus = 'syncing';
+            record.syncAttempts = (record.syncAttempts || 0) + 1;
+            record.lastSyncAt = Date.now();
             await store.put(record);
         }
         return tx.complete;
@@ -201,6 +295,60 @@ class LivestockDB {
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
         });
+    }
+
+    async saveCache(key, value) {
+        const tx = this.db.transaction(['cache'], 'readwrite');
+        const store = tx.objectStore('cache');
+        await store.put({
+            key,
+            value,
+            updatedAt: Date.now()
+        });
+        return tx.complete;
+    }
+
+    async getCache(key) {
+        const tx = this.db.transaction(['cache'], 'readonly');
+        const store = tx.objectStore('cache');
+        return await store.get(key);
+    }
+
+    async saveScanDraft(draft) {
+        const tx = this.db.transaction(['scanDrafts'], 'readwrite');
+        const store = tx.objectStore('scanDrafts');
+        const record = {
+            kind: 'photo_batch',
+            status: 'pending',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            ...draft
+        };
+        await store.add(record);
+        return tx.complete;
+    }
+
+    async getPendingScanDrafts() {
+        const tx = this.db.transaction(['scanDrafts'], 'readonly');
+        const store = tx.objectStore('scanDrafts');
+        const index = store.index('status');
+        return new Promise((resolve, reject) => {
+            const request = index.getAll('pending');
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async markScanDraftProcessed(id) {
+        const tx = this.db.transaction(['scanDrafts'], 'readwrite');
+        const store = tx.objectStore('scanDrafts');
+        const draft = await store.get(id);
+        if (draft) {
+            draft.status = 'processed';
+            draft.updatedAt = Date.now();
+            await store.put(draft);
+        }
+        return tx.complete;
     }
 }
 

@@ -290,15 +290,36 @@
   async function loadHerd() {
     try {
       herd = await F.loadHerd();
-      herdById = {};
-      document.getElementById('owHerd').innerHTML = herd.map((a) => `<option value="${esc(a.id)}">`).join('');
-      herd.forEach((a) => {
-        herdById[a.id] = a;
-        herdById[String(a.id || '').trim().toUpperCase()] = a;
-      });
+      if (typeof db !== 'undefined' && db.saveCache) { try { await db.saveCache('ownerHerd', herd); } catch (e) {} }
+      rebuildHerdIndex();
     } catch (e) {
-      msg('linMsg', 'Ga go kgonege go laisa dikgomo. Netefatsa inthanete. (Could not load. Check connection.)', false);
+      let cached = null;
+      if (typeof db !== 'undefined' && db.getCache) {
+        try {
+          const row = await db.getCache('ownerHerd');
+          cached = row && Array.isArray(row.value) ? row.value : null;
+        } catch (err) {}
+      }
+      if ((!cached || !cached.length) && Array.isArray(window.LIVESTOCK_DATA) && window.LIVESTOCK_DATA.length) {
+        cached = window.LIVESTOCK_DATA.slice();
+      }
+      if (cached && cached.length) {
+        herd = cached.slice();
+        rebuildHerdIndex();
+        msg('linMsg', 'Go dirisiwa herd e e bolokilweng mo founong. (Using the herd saved on this phone.)', true);
+      } else {
+        msg('linMsg', 'Ga go kgonege go laisa dikgomo. Netefatsa inthanete. (Could not load. Check connection.)', false);
+      }
     }
+  }
+
+  function rebuildHerdIndex() {
+    herdById = {};
+    document.getElementById('owHerd').innerHTML = herd.map((a) => `<option value="${esc(a.id)}">`).join('');
+    herd.forEach((a) => {
+      herdById[a.id] = a;
+      herdById[String(a.id || '').trim().toUpperCase()] = a;
+    });
   }
 
   async function onPickAnimal() {
@@ -502,6 +523,85 @@
       seen.add(key);
       scanRows.push({ value: value, present: true, kind: scanRowKind(value) });
     });
+  }
+
+  async function savePhotoDraftBatch(files, reason) {
+    if (typeof db === 'undefined' || !db.saveScanDraft) return false;
+    const items = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const b64 = await fileToScaledBase64(file, 1600, 0.75);
+        items.push({
+          name: file.name || ('scan-' + (i + 1) + '.jpg'),
+          type: file.type || 'image/jpeg',
+          data: b64
+        });
+      } catch (e) {}
+    }
+    if (!items.length) return false;
+    try {
+      await db.saveScanDraft({
+        kind: 'photo_batch',
+        status: 'pending',
+        reason: reason || 'scan',
+        selectedDate: (document.getElementById('ocrDate') || {}).value || '',
+        files: items
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function localGroupForTag(id) {
+    const s = String(id || '').trim();
+    if (/^[A-Z]{1,3}$/.test(s)) return 'calves';
+    if (s.startsWith('11')) return '11';
+    if (s.startsWith('55')) return '55';
+    if (s.startsWith('56')) return '56';
+    if (s.startsWith('58')) return '58';
+    if (s.startsWith('72')) return '72';
+    return 'other';
+  }
+
+  async function queueRegistryAddsLocally(rows, chosenDate) {
+    const created = [];
+    const failed = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const id = String(row.value || '').trim();
+      if (!id) continue;
+      try {
+        if (typeof db !== 'undefined' && db.savePendingAction) {
+          await db.savePendingAction('add_livestock', {
+            livestockId: id,
+            group: row.kind === 'calf' ? 'calves' : localGroupForTag(id),
+            submittedBy: (F.getUser && F.getUser() && F.getUser().name) || 'Owner scan',
+            source: 'register photo scan',
+            date: chosenDate || null,
+            comment: 'Queued offline from register photo' + (chosenDate ? (' on ' + chosenDate) : '')
+          });
+        }
+        const localRow = {
+          id: id,
+          group: row.kind === 'calf' ? 'calves' : localGroupForTag(id),
+          is_inactive: false,
+          status: 'active'
+        };
+        herd.push(localRow);
+        herdById[id] = localRow;
+        herdById[String(id).toUpperCase()] = localRow;
+        if (Array.isArray(window.LIVESTOCK_DATA)) window.LIVESTOCK_DATA.push(localRow);
+        created.push(id);
+      } catch (e) {
+        failed.push(id + ' (' + (e && e.message ? e.message : 'queue failed') + ')');
+      }
+    }
+    if (typeof db !== 'undefined' && db.saveCache) {
+      try { await db.saveCache('ownerHerd', herd); } catch (e) {}
+    }
+    return { created: created, failed: failed };
   }
 
   function fileToScaledBase64(file, maxDim, quality) {
@@ -752,7 +852,13 @@
       }
       if (useLocal) {
         try { res = await scanPhotoLocal(file); }
-        catch (err) { msg('ocrMsg', 'Ga go kgonege go bala senepe mo browser. (Could not scan the photo in the browser.)', false); return; }
+        catch (err) {
+          const saved = await savePhotoDraftBatch(files, 'ocr_unavailable');
+          msg('ocrMsg', saved
+            ? 'OCR ga e a kgona jaanong, mme ditshwantsho di bolokilwe mo founong gore di se latlhege. (OCR could not run now, but the photos were saved on this phone so they are not lost.)'
+            : 'Ga go kgonege go bala senepe mo browser. (Could not scan the photo in the browser.)', false);
+          return;
+        }
       }
       if (authFailed(res)) { closeScan(); return; }
       if (!res.ok) { msg('ocrMsg', 'Phoso: ' + (res.error || ''), false); return; }
@@ -873,21 +979,39 @@
           comment: 'Imported from register photo' + (chosenDate ? (' on ' + chosenDate) : '')
         };
       });
-      const res = await F.registerMany(batch, 'register photo scan');
-      if (authFailed(res)) { closeScan(); return; }
-      if (res && (res.ok || res.created_ids || res.failed)) {
-        created = Array.isArray(res.created_ids) ? res.created_ids.slice() : [];
-        failed = Array.isArray(res.failed)
-          ? res.failed.map(function (item) {
-            return item && item.id
-              ? (item.id + (item.error ? (' (' + item.error + ')') : ''))
-              : String(item || '');
-          }).filter(Boolean)
-          : [];
+      if (navigator.onLine) {
+        const res = await F.registerMany(batch, 'register photo scan');
+        if (authFailed(res)) { closeScan(); return; }
+        if (res && (res.ok || res.created_ids || res.failed)) {
+          created = Array.isArray(res.created_ids) ? res.created_ids.slice() : [];
+          failed = Array.isArray(res.failed)
+            ? res.failed.map(function (item) {
+              return item && item.id
+                ? (item.id + (item.error ? (' (' + item.error + ')') : ''))
+                : String(item || '');
+            }).filter(Boolean)
+            : [];
+          const failedIds = new Set((Array.isArray(res.failed) ? res.failed : []).map(function (item) {
+            return item && item.id ? String(item.id) : '';
+          }).filter(Boolean));
+          if (failedIds.size) {
+            const queued = await queueRegistryAddsLocally(unmatched.filter(function (row) { return failedIds.has(String(row.value)); }), chosenDate);
+            created = created.concat(queued.created);
+            failed = failed.filter(function (entry) {
+              return !queued.created.some(function (id) { return String(entry).startsWith(id + ' '); }) && !queued.created.some(function (id) { return String(entry) === id; });
+            }).concat(queued.failed);
+          }
+        } else {
+          const queued = await queueRegistryAddsLocally(unmatched, chosenDate);
+          created = queued.created;
+          failed = queued.failed.length ? queued.failed : unmatched.map(function (row) {
+            return row.value + (res && res.error ? (' (' + res.error + ')') : '');
+          });
+        }
       } else {
-        failed = unmatched.map(function (row) {
-          return row.value + (res && res.error ? (' (' + res.error + ')') : '');
-        });
+        const queued = await queueRegistryAddsLocally(unmatched, chosenDate);
+        created = queued.created;
+        failed = queued.failed;
       }
     }
     if (created.length) {
@@ -905,6 +1029,9 @@
       window.syncAttendanceCloud(sdate).then(function (r) {
         if (r && r.ok) msg('ocrMsg', (allPresent.length + ' di tshwailwe + di romilwe go difounu tsotlhe. (' + allPresent.length + ' marked + synced to all phones.)'), true);
       });
+    }
+    if (navigator.onLine && typeof autoSync === 'function') {
+      try { setTimeout(function () { autoSync(); }, 500); } catch (e) {}
     }
     let t = allPresent.length + ' di tshwailwe teng. (' + allPresent.length + ' marked present.)';
     if (chosenDate) t += ' Letsatsi: ' + chosenDate + '.';

@@ -10,6 +10,19 @@ const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 
 let _sbClient = null;
 
+function safeShowSyncStatus(message, type) {
+    if (typeof showSyncStatus === 'function') {
+        showSyncStatus(message, type);
+        return;
+    }
+    const successBox = document.getElementById('successMessage');
+    if (successBox) {
+        successBox.innerHTML = `<div class="alert-info">${message}</div>`;
+        return;
+    }
+    console.log('[sync]', type || 'info', message);
+}
+
 // Load the Supabase library on demand and create a client.
 // Doing it here means index.html needs no extra <script> tag.
 async function getSupabase() {
@@ -42,29 +55,49 @@ async function autoSync() {
         const unsyncedActions = await db.getUnsyncedActions();
 
         if (unsyncedAttendance.length === 0 && unsyncedActions.length === 0) {
-            showSyncStatus('Ga go na se se sa ntšhweng', 'online');
+            safeShowSyncStatus('Ga go na se se sa ntšhweng', 'online');
             return;
         }
 
         // Make sure we can reach Supabase before marking anything as synced
         await getSupabase();
 
+        let syncedCount = 0;
+        let failedCount = 0;
+
         for (const record of unsyncedAttendance) {
-            await syncAttendanceRecord(record);
-            await db.markAttendanceSynced(record.id);
+            try {
+                if (db.markAttendanceSyncing) await db.markAttendanceSyncing(record.id);
+                await syncAttendanceRecord(record);
+                await db.markAttendanceSynced(record.id);
+                syncedCount += 1;
+            } catch (error) {
+                failedCount += 1;
+                if (db.markAttendanceFailed) await db.markAttendanceFailed(record.id, error && error.message ? error.message : error);
+            }
         }
 
         for (const action of unsyncedActions) {
-            await syncAction(action);
-            await db.markActionSynced(action.id);
+            try {
+                if (db.markActionSyncing) await db.markActionSyncing(action.id);
+                await syncAction(action);
+                await db.markActionSynced(action.id);
+                syncedCount += 1;
+            } catch (error) {
+                failedCount += 1;
+                if (db.markActionFailed) await db.markActionFailed(action.id, error && error.message ? error.message : error);
+            }
         }
 
-        const count = unsyncedAttendance.length + unsyncedActions.length;
-        showSyncStatus(`Tlhabololo e atlehile! ${count} rekoto`, 'online');
+        if (failedCount) {
+            safeShowSyncStatus(`Tse dingwe di rometswe, ${syncedCount} di atlegile mme ${failedCount} di sa eme mo queue.`, 'offline');
+        } else {
+            safeShowSyncStatus(`Tlhabololo e atlehile! ${syncedCount} rekoto`, 'online');
+        }
 
     } catch (error) {
         console.error('Sync error:', error);
-        showSyncStatus('Phoso ya tlhabololo! Leka gape', 'error');
+        safeShowSyncStatus('Phoso ya tlhabololo! Leka gape', 'error');
     } finally {
         if (syncBtn) { syncBtn.classList.remove('syncing'); syncBtn.disabled = false; }
         if (syncIcon) syncIcon.textContent = '🔄';

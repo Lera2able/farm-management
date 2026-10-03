@@ -2953,6 +2953,7 @@
         let smallStockAttendance = {};
         let absentTouchedByDate = {}; // date -> { id:true } for tags explicitly UNticked (so corrections sync)
         let pendingDates = {};   // dates with un-synced attendance (offline-safe queue)
+        let pendingSmallStock = { goats: {}, sheep: {} }; // species/date queue for offline-safe small stock sync
         let pendingHealth = {};  // animals with un-synced sick/dead state
         let shepherdName = '';
         let selectedDate = '';
@@ -3239,11 +3240,26 @@
         // ---- offline-safe sync queue: never lose local work when signal returns ----
         function loadPending() {
             try { pendingDates = JSON.parse(localStorage.getItem('dikgomo_pending_dates') || '{}') || {}; } catch (e) { pendingDates = {}; }
+            try {
+                const saved = JSON.parse(localStorage.getItem('khumotaka_pending_smallstock') || '{}') || {};
+                pendingSmallStock = {
+                    goats: saved.goats || {},
+                    sheep: saved.sheep || {}
+                };
+            } catch (e) {
+                pendingSmallStock = { goats: {}, sheep: {} };
+            }
             try { pendingHealth = JSON.parse(localStorage.getItem('dikgomo_pending_health') || '{}') || {}; } catch (e) { pendingHealth = {}; }
         }
         function savePendingDates() { localStorage.setItem('dikgomo_pending_dates', JSON.stringify(pendingDates)); }
+        function savePendingSmallStock() { localStorage.setItem('khumotaka_pending_smallstock', JSON.stringify(pendingSmallStock)); }
         function savePendingHealth() { localStorage.setItem('dikgomo_pending_health', JSON.stringify(pendingHealth)); }
         function markDateDirty(date) { pendingDates[date] = true; savePendingDates(); }
+        function markSmallStockDirty(type, date) {
+            if (!pendingSmallStock[type]) pendingSmallStock[type] = {};
+            pendingSmallStock[type][date] = true;
+            savePendingSmallStock();
+        }
         function markHealthDirty(id) { pendingHealth[id] = true; savePendingHealth(); }
 
         // Push one day's register up (server merges + applies corrections). Clears the
@@ -3314,17 +3330,33 @@
         async function pullSmallStockAttendance(date) {
             if (!window.FarmData || !navigator.onLine || !window.FarmData.getSmallStockAttendanceCloud) return;
             try {
-                const goatRes = await window.FarmData.getSmallStockAttendanceCloud('goat', date);
-                const goatRow = goatRes && goatRes.ok && Array.isArray(goatRes.rows)
-                    ? (goatRes.rows.find(function (r) { return r.date === date; }) || null)
-                    : null;
-                if (goatRow) applySmallStockCloudRow('goats', date, goatRow);
-
-                const sheepRes = await window.FarmData.getSmallStockAttendanceCloud('sheep', date);
-                const sheepRow = sheepRes && sheepRes.ok && Array.isArray(sheepRes.rows)
-                    ? (sheepRes.rows.find(function (r) { return r.date === date; }) || null)
-                    : null;
-                if (sheepRow) applySmallStockCloudRow('sheep', date, sheepRow);
+                const speciesList = [
+                    { localType: 'goats', cloudType: 'goat' },
+                    { localType: 'sheep', cloudType: 'sheep' }
+                ];
+                for (let i = 0; i < speciesList.length; i++) {
+                    const item = speciesList[i];
+                    const localMap = speciesPresentSet(item.localType, date);
+                    const localIds = Object.keys(localMap);
+                    const res = await window.FarmData.getSmallStockAttendanceCloud(item.cloudType, date);
+                    const row = res && res.ok && Array.isArray(res.rows)
+                        ? (res.rows.find(function (r) { return r.date === date; }) || null)
+                        : null;
+                    const cloudSet = new Set((row && Array.isArray(row.present_ids)) ? row.present_ids.map(String) : []);
+                    const localOnly = localIds.filter(function (id) { return !cloudSet.has(String(id)); });
+                    const mustPush = !!(pendingSmallStock[item.localType] && pendingSmallStock[item.localType][date]) || localOnly.length > 0;
+                    if (mustPush) {
+                        const pushed = await pushSmallStockAttendance(item.localType, date, '');
+                        if (!pushed || !pushed.ok) continue;
+                        const refresh = await window.FarmData.getSmallStockAttendanceCloud(item.cloudType, date);
+                        const refreshedRow = refresh && refresh.ok && Array.isArray(refresh.rows)
+                            ? (refresh.rows.find(function (r) { return r.date === date; }) || null)
+                            : null;
+                        if (refreshedRow) applySmallStockCloudRow(item.localType, date, refreshedRow);
+                    } else if (row) {
+                        applySmallStockCloudRow(item.localType, date, row);
+                    }
+                }
             } catch (e) {
                 console.log('pullSmallStockAttendance skipped:', e.message);
             }
@@ -3335,7 +3367,12 @@
             const ids = Object.keys(speciesPresentSet(type, date));
             const species = type === 'goats' ? 'goat' : 'sheep';
             try {
-                return await window.FarmData.saveSmallStockAttendanceCloud(species, date, ids, actorName(), comment || '');
+                const result = await window.FarmData.saveSmallStockAttendanceCloud(species, date, ids, actorName(), comment || '');
+                if (result && result.ok && pendingSmallStock[type]) {
+                    delete pendingSmallStock[type][date];
+                    savePendingSmallStock();
+                }
+                return result;
             } catch (e) {
                 return { ok: false };
             }
@@ -3373,8 +3410,15 @@
             if (!navigator.onLine || !window.FarmData) return;
             const dates = Object.keys(pendingDates);
             for (let i = 0; i < dates.length; i++) { await pushAttendance(dates[i]); }
+            const goatDates = Object.keys(pendingSmallStock.goats || {});
+            for (let i = 0; i < goatDates.length; i++) { await pushSmallStockAttendance('goats', goatDates[i], ''); }
+            const sheepDates = Object.keys(pendingSmallStock.sheep || {});
+            for (let i = 0; i < sheepDates.length; i++) { await pushSmallStockAttendance('sheep', sheepDates[i], ''); }
             const ids = Object.keys(pendingHealth);
             for (let i = 0; i < ids.length; i++) { await pushHealthOne(ids[i]); }
+            if (typeof autoSync === 'function') {
+                try { await autoSync(); } catch (e) {}
+            }
         }
         window.addEventListener('online', function () {
             flushPending().then(function () { pullAttendance(selectedDate); pullSmallStockAttendance(selectedDate); pullHealth(); }).catch(function () {});
@@ -3810,6 +3854,7 @@
                 delete smallStockAttendance[type][date][animalId];
             }
             localStorage.setItem('khumotaka_smallstock_attendance', JSON.stringify(smallStockAttendance));
+            markSmallStockDirty(type, date);
             renderSpeciesTab(type);
         }
 
@@ -3912,7 +3957,17 @@
                 const presentCount = allPresentToday.length;
                 const absentCount = activeLivestock.length - presentCount;
                 auditLog('attendance_saved', null, presentCount + '/' + activeLivestock.length + ' present, ' + formatDate(selectedDate) + (attendanceComment ? (' | note: ' + attendanceComment.slice(0, 160)) : ''));
+
+                // Local-first: save on this phone before any cloud/webhook/email attempt.
+                if (typeof db !== 'undefined') {
+                    await db.saveAttendance(shepherdName, allPresentToday);
+                }
+                localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
+                localStorage.setItem('khumotaka_smallstock_attendance', JSON.stringify(smallStockAttendance));
                 markDateDirty(selectedDate);
+                markSmallStockDirty('goats', selectedDate);
+                markSmallStockDirty('sheep', selectedDate);
+
                 let cloudNote = ' <span style="color:#92400e;">E bolokilwe mo founong, e tla romelwa fa o le inthaneteng. (Saved on this phone, will sync when online.)</span>';
                 if (navigator.onLine && window.FarmData && window.FarmData.saveAttendanceCloud) {
                     const cr = await pushAttendance(selectedDate);
@@ -3925,12 +3980,6 @@
                         cloudNote += ' <span style="color:#065f46;">Dipodi le dinku le tsone di rometswe. (Goat and sheep dates synced too.)</span>';
                     }
                 }
-                
-                // Save to localStorage first
-                if (typeof db !== 'undefined') {
-                    await db.saveAttendance(shepherdName, allPresentToday);
-                }
-                localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
                 
                 // Send to Power Automate webhook if configured
                 if (WEBHOOK_CONFIG.enabled && WEBHOOK_CONFIG.url) {
@@ -4658,6 +4707,8 @@
         }
         refreshInstallChip();
     </script>
+    <script src="db.js"></script>
+    <script src="sync.js"></script>
     <script src="supabase-data.js"></script>
     <script src="owner-ui.js"></script>
 </body>

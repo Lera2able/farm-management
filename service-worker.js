@@ -1,11 +1,13 @@
 // Service Worker - network-first so new commits reach devices as soon as they
 // are online, while still working offline from the last good copy.
-const CACHE_NAME = 'dikgomo-v10';
+const CACHE_NAME = 'dikgomo-v11';
 const CORE = [
   './',
   './index.html',
   './app.html',
   './manifest.json',
+  './db.js',
+  './sync.js',
   './supabase-data.js',
   './owner-ui.js',
   './master_stock.xlsx',
@@ -15,13 +17,17 @@ const CORE = [
   './assets/goats.jpeg',
   './assets/sheep.jpeg',
 ];
+const EXTERNAL = [
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',
+];
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) =>
             // add each file on its own so one missing file can't fail the install
-            Promise.all(CORE.map((u) => cache.add(u).catch(() => null)))
+            Promise.all(CORE.concat(EXTERNAL).map((u) => cache.add(u).catch(() => null)))
         )
     );
 });
@@ -39,7 +45,21 @@ self.addEventListener('fetch', (event) => {
     if (req.method !== 'GET') return;
 
     const url = new URL(req.url);
-    // Let cross-origin requests (CDNs, Supabase, EmailJS) go straight to the network.
+    const isExternalAsset = EXTERNAL.indexOf(url.href) >= 0;
+
+    if (isExternalAsset) {
+        event.respondWith(
+            caches.match(req).then((hit) =>
+                hit || fetch(req).then((res) => {
+                    caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
+                    return res;
+                })
+            )
+        );
+        return;
+    }
+
+    // Let other cross-origin requests (Supabase APIs, email, etc.) go straight to the network.
     if (url.origin !== self.location.origin) return;
 
     // Network-first: try the freshest file; fall back to cache when offline.
