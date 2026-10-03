@@ -15,6 +15,68 @@ import {
   sendResendEmail,
 } from "../_shared/helpers.ts";
 
+function registryTypeLabel(groupName: string) {
+  return groupName === "calves" ? "Calf" : "Cow";
+}
+
+function buildGroupedRegistryEmail(entries: Array<{
+  id: string;
+  groupName: string;
+  motherId?: string | null;
+  fatherId?: string | null;
+  sex?: string | null;
+  dateOfBirth?: string | null;
+  comment?: string | null;
+}>, actor: string, source: string) {
+  const cows = entries.filter((entry) => entry.groupName !== "calves");
+  const calves = entries.filter((entry) => entry.groupName === "calves");
+  const lines = [
+    "Khumotaka new registry entries",
+    `Added by: ${actor}`,
+    `Source: ${source}`,
+    `Total new entries: ${entries.length}`,
+  ];
+  if (cows.length) lines.push(`Cows (${cows.length}): ${cows.map((entry) => entry.id).join(", ")}`);
+  if (calves.length) lines.push(`Calves (${calves.length}): ${calves.map((entry) => entry.id).join(", ")}`);
+  const text = lines.join("\n");
+  const rowHtml = entries.map((entry) => `
+    <tr>
+      <td>${registryTypeLabel(entry.groupName)}</td>
+      <td>${entry.id}</td>
+      <td>${entry.motherId ?? ""}</td>
+      <td>${entry.fatherId ?? ""}</td>
+      <td>${entry.sex ?? ""}</td>
+      <td>${entry.dateOfBirth ?? ""}</td>
+      <td>${entry.comment ?? ""}</td>
+    </tr>
+  `).join("");
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+      <h2 style="margin-bottom:8px">Khumotaka new registry entries</h2>
+      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;margin-bottom:12px">
+        <tr><td><b>Added by</b></td><td>${actor}</td></tr>
+        <tr><td><b>Source</b></td><td>${source}</td></tr>
+        <tr><td><b>Total new entries</b></td><td>${entries.length}</td></tr>
+        ${cows.length ? `<tr><td><b>Cows</b></td><td>${cows.map((entry) => entry.id).join(", ")}</td></tr>` : ""}
+        ${calves.length ? `<tr><td><b>Calves</b></td><td>${calves.map((entry) => entry.id).join(", ")}</td></tr>` : ""}
+      </table>
+      <table cellpadding="8" cellspacing="0" border="1" style="border-collapse:collapse;border-color:#d1d5db">
+        <tr style="background:#f3f4f6">
+          <th align="left">Type</th>
+          <th align="left">Tag</th>
+          <th align="left">Mother</th>
+          <th align="left">Father</th>
+          <th align="left">Sex</th>
+          <th align="left">Date of birth</th>
+          <th align="left">Comment</th>
+        </tr>
+        ${rowHtml}
+      </table>
+    </div>
+  `;
+  return { text, html };
+}
+
 serve(async (req) => {
   const options = handleOptions(req);
   if (options) return options;
@@ -456,6 +518,111 @@ serve(async (req) => {
         }
       }
       return json(200, { ok: true, id });
+    }
+
+    if (action === "registerMany") {
+      const source = String(body.source ?? "owner panel").trim() || "owner panel";
+      const items = Array.isArray(body.items) ? body.items as Array<Record<string, unknown>> : [];
+      if (!items.length) return json(400, { ok: false, error: "Missing items" });
+
+      const normalized = items
+        .map((item) => ({
+          id: String(item.id ?? "").trim(),
+          groupName: item.group ? String(item.group) : "",
+          motherId: item.motherId ? String(item.motherId) : null,
+          fatherId: item.fatherId ? String(item.fatherId) : null,
+          sex: item.sex ? String(item.sex) : null,
+          dateOfBirth: item.dateOfBirth ? String(item.dateOfBirth) : null,
+          comment: item.comment ? String(item.comment) : null,
+        }))
+        .filter((item) => item.id);
+      if (!normalized.length) return json(400, { ok: false, error: "No valid tags supplied" });
+
+      const ids = [...new Set(normalized.map((item) => item.id))];
+      const { data: existingRows, error: existingError } = await supabase
+        .from("farm_livestock")
+        .select("id")
+        .in("id", ids);
+      if (existingError) throw existingError;
+      const existing = new Set((existingRows ?? []).map((row) => String(row.id)));
+
+      const created: Array<{
+        id: string;
+        groupName: string;
+        motherId?: string | null;
+        fatherId?: string | null;
+        sex?: string | null;
+        dateOfBirth?: string | null;
+        comment?: string | null;
+      }> = [];
+      const existingIds: string[] = [];
+      const failed: Array<{ id: string; error: string }> = [];
+
+      for (const item of normalized) {
+        const id = item.id;
+        const groupName = item.groupName || groupForId(id);
+        try {
+          const { error } = await supabase.from("farm_livestock").upsert({
+            id,
+            group_name: groupName,
+            is_inactive: false,
+            status: "active",
+            mother_id: item.motherId,
+            father_id: item.fatherId,
+            sex: item.sex,
+            date_of_birth: item.dateOfBirth,
+            updated_by: actor,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "id" });
+          if (error) throw error;
+
+          if (item.comment) {
+            await supabase.from("farm_comments").insert({
+              livestock_id: id,
+              comment: item.comment,
+              author: actor,
+            });
+          }
+
+          const actionName = groupName === "calves" ? "calf_added" : "registry_added";
+          await logAudit(supabase, { action: actionName, livestock_id: id, actor, source });
+
+          if (existing.has(id)) existingIds.push(id);
+          else created.push({
+            id,
+            groupName,
+            motherId: item.motherId,
+            fatherId: item.fatherId,
+            sex: item.sex,
+            dateOfBirth: item.dateOfBirth,
+            comment: item.comment,
+          });
+        } catch (error) {
+          failed.push({
+            id,
+            error: String(error instanceof Error ? error.message : error),
+          });
+        }
+      }
+
+      if (created.length) {
+        const mail = buildGroupedRegistryEmail(created, actor, source);
+        const mailResult = await sendResendEmail({
+          subject: `Khumotaka new registry entries (${created.length})`,
+          text: mail.text,
+          html: mail.html,
+        });
+        if (!mailResult.ok) {
+          console.error("[farm-admin] grouped registry email not sent", mailResult.reason);
+        }
+      }
+
+      return json(200, {
+        ok: failed.length === 0,
+        created_ids: created.map((item) => item.id),
+        existing_ids: existingIds,
+        failed,
+      });
     }
 
     if (action === "editAnimal") {

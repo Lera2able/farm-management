@@ -136,6 +136,9 @@ window.FarmData = (function () {
   function registerCalf({ id, motherId, fatherId, sex, dateOfBirth, group, comment } = {}) {
     return callAuthed('registerCalf', { id, motherId, fatherId, sex, dateOfBirth, group, comment });
   }
+  function registerMany(items, source) {
+    return callAuthed('registerMany', { items: items || [], source: source || 'owner panel' });
+  }
   function editAnimal({ id, newId, name, dateOfBirth, comment } = {}) {
     return callAuthed('editAnimal', { id, newId, name, dateOfBirth, comment });
   }
@@ -240,7 +243,7 @@ window.FarmData = (function () {
   return {
     getClient, loadHerd, getStats, groupForId,
     adminLogin, adminLogout, isAdmin, getUser, isSuperSuper,
-    updateLineage, registerCalf, editAnimal, addComment, getComments, scanNumbers, scanVoice,
+    updateLineage, registerCalf, registerMany, editAnimal, addComment, getComments, scanNumbers, scanVoice,
     listUsers, createUser, deleteUser,
     logAudit, getAudit, notifyAttendance,
     saveAttendanceCloud, getAttendanceCloud, setHealthCloud, getHealthCloud,

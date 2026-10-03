@@ -863,17 +863,32 @@
       var diA = document.getElementById('dateInput');
       if (diA) { diA.value = chosenDate; if (typeof updateDateDisplay === 'function') updateDateDisplay(); }
     }
-    const created = [];
-    const failed = [];
-    for (const row of unmatched) {
-      const res = await F.registerCalf({
-        id: row.value,
-        group: row.kind === 'calf' ? 'calves' : undefined,
-        comment: 'Imported from register photo' + (chosenDate ? (' on ' + chosenDate) : '')
+    let created = [];
+    let failed = [];
+    if (unmatched.length) {
+      const batch = unmatched.map(function (row) {
+        return {
+          id: row.value,
+          group: row.kind === 'calf' ? 'calves' : undefined,
+          comment: 'Imported from register photo' + (chosenDate ? (' on ' + chosenDate) : '')
+        };
       });
+      const res = await F.registerMany(batch, 'register photo scan');
       if (authFailed(res)) { closeScan(); return; }
-      if (res && res.ok) created.push(row.value);
-      else failed.push(row.value + (res && res.error ? (' (' + res.error + ')') : ''));
+      if (res && (res.ok || res.created_ids || res.failed)) {
+        created = Array.isArray(res.created_ids) ? res.created_ids.slice() : [];
+        failed = Array.isArray(res.failed)
+          ? res.failed.map(function (item) {
+            return item && item.id
+              ? (item.id + (item.error ? (' (' + item.error + ')') : ''))
+              : String(item || '');
+          }).filter(Boolean)
+          : [];
+      } else {
+        failed = unmatched.map(function (row) {
+          return row.value + (res && res.error ? (' (' + res.error + ')') : '');
+        });
+      }
     }
     if (created.length) {
       await loadHerd();
