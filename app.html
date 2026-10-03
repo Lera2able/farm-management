@@ -4162,9 +4162,10 @@
             // Build attendance data
             const activeLivestock = LIVESTOCK_DATA.filter(l => !l.is_inactive);
             const inactiveLivestock = LIVESTOCK_DATA.filter(l => l.is_inactive);
+            const allStock = farmStockRows();
 
             // Present-by-date, unioned across every group for each date
-            const byDate = presentByDate();
+            const byDate = allPresentByDate();
 
             // Which date(s) to export, from the chooser
             const sel = document.getElementById('excelDateSelect');
@@ -4198,7 +4199,7 @@
             
             excelHTML += '<table border="1" cellspacing="0" cellpadding="5">';
             excelHTML += '<tr class="header">';
-            excelHTML += '<th>No.</th><th>Livestock ID</th><th>Group</th>';
+            excelHTML += '<th>No.</th><th>Stock Type</th><th>Livestock ID</th><th>Group</th>';
             
             sortedDates.forEach(date => {
                 excelHTML += '<th>' + formatDate(date) + '</th>';
@@ -4207,9 +4208,10 @@
             excelHTML += '</tr>';
             
             // Build rows with color coding
-            activeLivestock.forEach((item, index) => {
+            allStock.forEach((item, index) => {
                 excelHTML += '<tr>';
                 excelHTML += '<td>' + (index + 1) + '</td>';
+                excelHTML += '<td>' + item.stockType + '</td>';
                 excelHTML += '<td><strong>' + item.id + '</strong></td>';
                 excelHTML += '<td>' + item.group + '</td>';
                 
@@ -4233,14 +4235,14 @@
             
             sortedDates.forEach(date => {
                 const presentCount = byDate[date] ? Object.keys(byDate[date]).length : 0;
-                const absentCount = activeLivestock.length - presentCount;
-                const percentage = ((presentCount / activeLivestock.length) * 100).toFixed(1);
+                const absentCount = allStock.length - presentCount;
+                const percentage = allStock.length ? ((presentCount / allStock.length) * 100).toFixed(1) : '0.0';
                 
                 excelHTML += '<tr class="summary">';
                 excelHTML += '<td>' + formatDate(date) + '</td>';
                 excelHTML += '<td class="present">' + presentCount + '</td>';
-                excelHTML += '<td class="absent">' + absentCount + '</td>';
-                excelHTML += '<td>' + activeLivestock.length + '</td>';
+                excelHTML += '<td>' + absentCount + '</td>';
+                excelHTML += '<td>' + allStock.length + '</td>';
                 excelHTML += '<td>' + percentage + '%</td>';
                 excelHTML += '</tr>';
             });
@@ -4291,7 +4293,7 @@
             link.click();
             document.body.removeChild(link);
             
-            alert(`✓ Downloaded!\n\nFile: Dikgomo_Attendance_${fileLabel}.xls\n\n✅ Green = Present\n❌ Red = Absent\n\nIncludes 2 sheets:\n1. Attendance (color-coded)\n2. Inactive Livestock\n\nYou can now upload to OneDrive!`);
+            alert(`✓ Downloaded!\n\nFile: Dikgomo_Attendance_${fileLabel}.xls\n\n✅ Green = Present\n❌ Red = Absent\n\nIncludes 2 sheets:\n1. Attendance (full stock)\n2. Inactive Livestock\n\nYou can now upload to OneDrive!`);
         }
 
         // Edit livestock number
@@ -4401,6 +4403,33 @@
             });
             return map;
         }
+        function farmStockRows() {
+            const rows = [];
+            LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; }).forEach(function (l) {
+                rows.push({ stockType: 'Cattle', id: String(l.id), group: String(l.group || '') });
+            });
+            GOAT_DATA.forEach(function (id) {
+                rows.push({ stockType: 'Goat', id: String(id), group: 'goats' });
+            });
+            SHEEP_DATA.forEach(function (id) {
+                rows.push({ stockType: 'Sheep', id: String(id), group: 'sheep' });
+            });
+            return rows;
+        }
+        function allPresentByDate() {
+            const map = presentByDate();
+            ['goats', 'sheep'].forEach(function (type) {
+                const speciesDays = smallStockAttendance[type] || {};
+                Object.keys(speciesDays).forEach(function (ymd) {
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+                    if (!map[ymd]) map[ymd] = {};
+                    Object.keys(speciesDays[ymd] || {}).forEach(function (id) {
+                        if (speciesDays[ymd][id] === true) map[ymd][String(id)] = true;
+                    });
+                });
+            });
+            return map;
+        }
         function statusFill(cell, text) {
             const t = String(text == null ? '' : text).trim().toLowerCase();
             let bg = null, fg = 'FF000000';
@@ -4414,16 +4443,29 @@
             cell.alignment = { horizontal: 'center' };
         }
         function colourDateSheet(ws) {
-            const a1 = ws.getCell(1, 1).value, b1 = ws.getCell(1, 2).value;
-            if (String(a1 == null ? '' : a1).trim() !== 'Tag No' || String(b1 == null ? '' : b1).trim() !== 'Status') return;
-            ws.getCell(1, 1).font = { bold: true };
-            ws.getCell(1, 2).font = { bold: true };
+            const headers = [
+                String(ws.getCell(1, 1).value == null ? '' : ws.getCell(1, 1).value).trim(),
+                String(ws.getCell(1, 2).value == null ? '' : ws.getCell(1, 2).value).trim(),
+                String(ws.getCell(1, 3).value == null ? '' : ws.getCell(1, 3).value).trim()
+            ];
+            const oldStyle = headers[0] === 'Tag No' && headers[1] === 'Status';
+            const fullStyle = headers[0] === 'Stock Type' && headers[1] === 'Tag No' && headers[2] === 'Status';
+            if (!oldStyle && !fullStyle) return;
+            const headerCols = fullStyle ? 3 : 2;
+            for (let c = 1; c <= headerCols; c++) {
+                const cell = ws.getCell(1, c);
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+                cell.alignment = { horizontal: 'center' };
+            }
             const last = ws.rowCount;
             for (let r = 2; r <= last; r++) {
-                statusFill(ws.getCell(r, 2), ws.getCell(r, 2).value);
+                const statusCol = fullStyle ? 3 : 2;
+                statusFill(ws.getCell(r, statusCol), ws.getCell(r, statusCol).value);
             }
-            ws.getColumn(1).width = 14;
-            ws.getColumn(2).width = 12;
+            ws.getColumn(1).width = fullStyle ? 14 : 14;
+            ws.getColumn(2).width = 14;
+            if (fullStyle) ws.getColumn(3).width = 12;
         }
         async function downloadMaster() {
             try { await ensureExcelJS(); }
@@ -4440,19 +4482,35 @@
                 ws.getRow(1).font = { bold: true };
                 LIVESTOCK_DATA.forEach(function (l) { ws.addRow([l.id, l.group, l.is_inactive ? 'Inactive' : 'Active']); });
             }
-            const existing = {};
-            wb.eachSheet(function (ws) { existing[ws.name] = true; });
-            const byDate = presentByDate();
-            const activeIds = LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; }).map(function (l) { return l.id; });
-            let added = 0;
+            const byDate = allPresentByDate();
+            const stockRows = farmStockRows();
+            const existingByName = {};
+            wb.eachSheet(function (ws) { existingByName[ws.name] = ws; });
+            if (existingByName['Farm Stock Master']) wb.removeWorksheet(existingByName['Farm Stock Master'].id);
+            const master = wb.addWorksheet('Farm Stock Master', { properties: { tabColor: { argb: 'FF1F4E78' } } });
+            master.addRow(['Stock Type', 'Tag No', 'Group', 'Active On Farm']);
+            stockRows.forEach(function (row) { master.addRow([row.stockType, row.id, row.group, 'Yes']); });
+            for (let c = 1; c <= 4; c++) {
+                const cell = master.getCell(1, c);
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+                cell.alignment = { horizontal: 'center' };
+            }
+            master.getColumn(1).width = 14;
+            master.getColumn(2).width = 14;
+            master.getColumn(3).width = 12;
+            master.getColumn(4).width = 14;
+            let updated = 0;
             Object.keys(byDate).sort().forEach(function (ymd) {
                 const sheetName = ymdToDmy(ymd).slice(0, 31);
-                if (existing[sheetName]) return;
+                if (existingByName[sheetName]) wb.removeWorksheet(existingByName[sheetName].id);
                 const present = byDate[ymd];
                 const ws = wb.addWorksheet(sheetName);
-                ws.addRow(['Tag No', 'Status']);
-                activeIds.forEach(function (id) { ws.addRow([id, present[id] ? 'Present' : 'Absent']); });
-                existing[sheetName] = true; added++;
+                ws.addRow(['Stock Type', 'Tag No', 'Status']);
+                stockRows.forEach(function (row) {
+                    ws.addRow([row.stockType, row.id, present[row.id] ? 'Present' : 'Absent']);
+                });
+                updated++;
             });
             wb.eachSheet(function (ws) { try { colourDateSheet(ws); } catch (e) {} });
             const buf = await wb.xlsx.writeBuffer();
@@ -4464,7 +4522,7 @@
             document.body.appendChild(a); a.click();
             setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
             setTimeout(function () {
-                alert(added > 0 ? ('Master downloaded with ' + added + ' new date tab(s), colour coded.') : 'Master downloaded, colour coded.');
+                alert(updated > 0 ? ('Master downloaded with ' + updated + ' full-stock date tab(s), colour coded.') : 'Master downloaded, colour coded.');
             }, 200);
         }
 
