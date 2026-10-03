@@ -67,10 +67,10 @@
         <p class="home">The home of Khumotaka.</p>
         <button class="enter" onclick="enterRegister()">&#128273; Enter the Livestock Register</button>
         <div id="installNote" class="install-note hidden">
-            <div><strong>Install Khumotaka on this phone.</strong> It opens faster and works better offline after the first visit.</div>
+            <div><strong>Download or install Khumotaka on this phone.</strong> It opens like an app and works better offline after the first visit.</div>
             <div id="installHint" style="margin-top:6px;">Use the install option in your browser or tap the button below when it appears.</div>
             <div class="install-actions">
-                <button id="installBtn" class="install-btn hidden" type="button">Install app</button>
+                <button id="installBtn" class="install-btn hidden" type="button">Download app</button>
                 <button id="installDismiss" class="install-dismiss" type="button">Not now</button>
             </div>
         </div>
@@ -128,14 +128,30 @@
             note.classList.remove('hidden');
             if (deferredInstallPrompt) {
                 btn.classList.remove('hidden');
-                hint.textContent = 'Tap Install app for a home-screen version that reopens faster and works better offline.';
+                btn.textContent = 'Download app';
+                hint.textContent = 'Tap Download app to install the phone app version with offline support.';
             } else if (isIosSafari()) {
                 btn.classList.add('hidden');
-                hint.textContent = 'On iPhone, tap Share and then Add to Home Screen.';
+                hint.textContent = 'On iPhone, tap Share and then Add to Home Screen to install it like an app.';
             } else {
-                btn.classList.add('hidden');
-                hint.textContent = 'After one full load, your browser may offer Install or Add to Home Screen.';
+                btn.classList.remove('hidden');
+                btn.textContent = 'How to install';
+                hint.textContent = 'If your browser does not show a prompt, open the browser menu and choose Install app or Add to Home Screen.';
             }
+        }
+        async function handleInstallRequest() {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                try { await deferredInstallPrompt.userChoice; } catch (e) {}
+                deferredInstallPrompt = null;
+                refreshInstallNote();
+                return;
+            }
+            if (isIosSafari()) {
+                alert('On iPhone: tap Share, then choose Add to Home Screen.');
+                return;
+            }
+            alert('Open your browser menu and choose Install app or Add to Home Screen.');
         }
         window.addEventListener('beforeinstallprompt', function (event) {
             event.preventDefault();
@@ -151,13 +167,7 @@
             var installBtn = document.getElementById('installBtn');
             var dismissBtn = document.getElementById('installDismiss');
             if (installBtn) {
-                installBtn.addEventListener('click', async function () {
-                    if (!deferredInstallPrompt) return;
-                    deferredInstallPrompt.prompt();
-                    try { await deferredInstallPrompt.userChoice; } catch (e) {}
-                    deferredInstallPrompt = null;
-                    refreshInstallNote();
-                });
+                installBtn.addEventListener('click', handleInstallRequest);
             }
             if (dismissBtn) {
                 dismissBtn.addEventListener('click', function () {
