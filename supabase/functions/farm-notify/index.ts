@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { corsHeaders, handleOptions, json, readJson } from "../_shared/helpers.ts";
+import { corsHeaders, handleOptions, json, readJson, sendResendEmail } from "../_shared/helpers.ts";
 
 serve(async (req) => {
   const options = handleOptions(req);
@@ -8,16 +8,6 @@ serve(async (req) => {
 
   try {
     const body = await readJson(req) as Record<string, unknown>;
-    const resendKey = Deno.env.get("RESEND_API_KEY");
-    const toList = (Deno.env.get("FARM_NOTIFY_TO") ?? "")
-      .split(",")
-      .map((x) => x.trim())
-      .filter(Boolean);
-    const fromEmail = Deno.env.get("FARM_NOTIFY_FROM") ?? "Khumotaka <onboarding@resend.dev>";
-
-    if (!resendKey) return json(200, { ok: false, sent: false, reason: "RESEND_API_KEY is not configured" });
-    if (!toList.length) return json(200, { ok: false, sent: false, reason: "FARM_NOTIFY_TO is not configured" });
-
     const date = String(body.date ?? "");
     const shepherd = String(body.shepherd ?? "Modisa");
     const present = Number(body.present ?? 0);
@@ -52,31 +42,12 @@ serve(async (req) => {
       </div>
     `;
 
-    const resp = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: fromEmail,
-        to: toList,
-        subject: `Khumotaka attendance: ${date || "today"}`,
-        text,
-        html,
-      }),
+    const result = await sendResendEmail({
+      subject: `Khumotaka attendance: ${date || "today"}`,
+      text,
+      html,
     });
-
-    const payload = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      return json(200, {
-        ok: false,
-        sent: false,
-        reason: payload?.message ?? `HTTP ${resp.status}`,
-      });
-    }
-
-    return json(200, { ok: true, sent: true, id: payload?.id ?? null });
+    return json(200, result);
   } catch (error) {
     console.error("[farm-notify]", error);
     return new Response(JSON.stringify({ ok: false, sent: false, reason: String(error instanceof Error ? error.message : error) }), {

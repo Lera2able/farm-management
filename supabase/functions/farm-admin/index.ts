@@ -12,6 +12,7 @@ import {
   randomToken,
   readJson,
   requireSession,
+  sendResendEmail,
 } from "../_shared/helpers.ts";
 
 serve(async (req) => {
@@ -245,9 +246,16 @@ serve(async (req) => {
     if (action === "registerCalf") {
       const id = String(body.id ?? "").trim();
       if (!id) return json(400, { ok: false, error: "Missing tag number" });
+      const { data: existing, error: existingError } = await supabase
+        .from("farm_livestock")
+        .select("id,group_name")
+        .eq("id", id)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      const groupName = body.group ? String(body.group) : groupForId(id);
       const { error } = await supabase.from("farm_livestock").upsert({
         id,
-        group_name: body.group ? String(body.group) : groupForId(id),
+        group_name: groupName,
         is_inactive: false,
         status: "active",
         mother_id: body.motherId ? String(body.motherId) : null,
@@ -265,7 +273,49 @@ serve(async (req) => {
           author: actor,
         });
       }
-      await logAudit(supabase, { action: "calf_added", livestock_id: id, actor, source: "owner" });
+      const actionName = groupName === "calves" ? "calf_added" : "registry_added";
+      await logAudit(supabase, { action: actionName, livestock_id: id, actor, source: "owner" });
+      if (!existing) {
+        const typeLabel = groupName === "calves" ? "Calf" : "Cow";
+        const noteParts = [
+          `${typeLabel} tag: ${id}`,
+          `Added by: ${actor}`,
+          `Source: owner panel`,
+        ];
+        if (body.motherId) noteParts.push(`Mother: ${String(body.motherId)}`);
+        if (body.fatherId) noteParts.push(`Father: ${String(body.fatherId)}`);
+        if (body.sex) noteParts.push(`Sex: ${String(body.sex)}`);
+        if (body.dateOfBirth) noteParts.push(`Date of birth: ${String(body.dateOfBirth)}`);
+        if (body.comment) noteParts.push(`Comment: ${String(body.comment)}`);
+        const text = [
+          "Khumotaka new registry entry",
+          ...noteParts,
+        ].join("\n");
+        const html = `
+          <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+            <h2 style="margin-bottom:8px">Khumotaka new registry entry</h2>
+            <table cellpadding="8" cellspacing="0" style="border-collapse:collapse">
+              <tr><td><b>Type</b></td><td>${typeLabel}</td></tr>
+              <tr><td><b>Tag</b></td><td>${id}</td></tr>
+              <tr><td><b>Added by</b></td><td>${actor}</td></tr>
+              <tr><td><b>Source</b></td><td>Owner panel</td></tr>
+              ${body.motherId ? `<tr><td><b>Mother</b></td><td>${String(body.motherId)}</td></tr>` : ""}
+              ${body.fatherId ? `<tr><td><b>Father</b></td><td>${String(body.fatherId)}</td></tr>` : ""}
+              ${body.sex ? `<tr><td><b>Sex</b></td><td>${String(body.sex)}</td></tr>` : ""}
+              ${body.dateOfBirth ? `<tr><td><b>Date of birth</b></td><td>${String(body.dateOfBirth)}</td></tr>` : ""}
+              ${body.comment ? `<tr><td><b>Comment</b></td><td>${String(body.comment)}</td></tr>` : ""}
+            </table>
+          </div>
+        `;
+        const mailResult = await sendResendEmail({
+          subject: `Khumotaka new entry: ${id}`,
+          text,
+          html,
+        });
+        if (!mailResult.ok) {
+          console.error("[farm-admin] new entry email not sent", id, mailResult.reason);
+        }
+      }
       return json(200, { ok: true, id });
     }
 

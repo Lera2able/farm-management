@@ -168,3 +168,48 @@ export function decodeBase64(base64: string) {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
+
+export function getNotifyConfig() {
+  const resendKey = Deno.env.get("RESEND_API_KEY") ?? "";
+  const toList = (Deno.env.get("FARM_NOTIFY_TO") ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const fromEmail = Deno.env.get("FARM_NOTIFY_FROM") ?? "Khumotaka <onboarding@resend.dev>";
+  return { resendKey, toList, fromEmail };
+}
+
+export async function sendResendEmail(payload: {
+  subject: string;
+  text: string;
+  html: string;
+}) {
+  const { resendKey, toList, fromEmail } = getNotifyConfig();
+  if (!resendKey) return { ok: false as const, sent: false as const, reason: "RESEND_API_KEY is not configured" };
+  if (!toList.length) return { ok: false as const, sent: false as const, reason: "FARM_NOTIFY_TO is not configured" };
+
+  const resp = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: toList,
+      subject: payload.subject,
+      text: payload.text,
+      html: payload.html,
+    }),
+  });
+
+  const body = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    return {
+      ok: false as const,
+      sent: false as const,
+      reason: body?.message ?? `HTTP ${resp.status}`,
+    };
+  }
+  return { ok: true as const, sent: true as const, id: body?.id ?? null };
+}
