@@ -1,6 +1,9 @@
 // Service Worker - network-first so new commits reach devices as soon as they
 // are online, while still working offline from the last good copy.
-const CACHE_NAME = 'dikgomo-v13';
+// v14: forces every device to re-cache the full file set (older caches were
+// filled while several app files were missing from the server), and re-heals
+// any missing cached files on every activation.
+const CACHE_NAME = 'dikgomo-v14';
 const CORE = [
   './',
   './index.html',
@@ -40,20 +43,22 @@ const CACHEABLE_CDN_HOSTS = [
   'tessdata.projectnaptha.com',
 ];
 
+function precacheAll(cache) {
+    // add each file on its own so one missing file can't fail the rest
+    return Promise.all(CORE.concat(EXTERNAL).map((u) => cache.add(u).catch(() => null)));
+}
+
 self.addEventListener('install', (event) => {
     self.skipWaiting();
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) =>
-            // add each file on its own so one missing file can't fail the install
-            Promise.all(CORE.concat(EXTERNAL).map((u) => cache.add(u).catch(() => null)))
-        )
-    );
+    event.waitUntil(caches.open(CACHE_NAME).then(precacheAll));
 });
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys()
             .then((names) => Promise.all(names.map((n) => (n !== CACHE_NAME ? caches.delete(n) : null))))
+            // self-heal: top up any core files a previous broken cache missed
+            .then(() => caches.open(CACHE_NAME).then(precacheAll))
             .then(() => self.clients.claim())
     );
 });
@@ -90,7 +95,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
         fetch(req)
             .then((res) => {
-                if (res && res.status === 200 && res.type === 'basic') {
+                if (res && res.status === 200 && (res.type === 'basic' || res.type === 'default')) {
                     const copy = res.clone();
                     caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
                 }
