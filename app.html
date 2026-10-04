@@ -4676,11 +4676,21 @@
         function tagSortKey(t) {
             return /^\d+$/.test(t) ? [0, Number(t)] : [1, t];
         }
-        function sortedStockRows() {
+        function allStockRows() {
+            // active stock plus inactive (sold/died) cattle, flagged for greying out
+            const rows = farmStockRows().map(function (r) { r.onFarm = 'Yes'; return r; });
+            LIVESTOCK_DATA.filter(function (l) { return l.is_inactive; }).forEach(function (l) {
+                rows.push({ stockType: 'Cattle', id: String(l.id), group: String(l.group || ''), onFarm: 'No' });
+            });
+            return rows;
+        }
+        function sortStockRows(rows) {
             const typeOrder = { 'Cattle': 0, 'Goat': 1, 'Sheep': 2 };
-            return farmStockRows().slice().sort(function (a, b) {
+            return rows.slice().sort(function (a, b) {
                 const dt = (typeOrder[a.stockType] != null ? typeOrder[a.stockType] : 9) - (typeOrder[b.stockType] != null ? typeOrder[b.stockType] : 9);
                 if (dt !== 0) return dt;
+                const ia = a.onFarm === 'No' ? 1 : 0, ib = b.onFarm === 'No' ? 1 : 0;
+                if (ia !== ib) return ia - ib;
                 const ka = tagSortKey(a.id), kb = tagSortKey(b.id);
                 if (ka[0] !== kb[0]) return ka[0] - kb[0];
                 return ka[0] === 0 ? ka[1] - kb[1] : (ka[1] < kb[1] ? -1 : ka[1] > kb[1] ? 1 : 0);
@@ -4689,9 +4699,9 @@
         function buildConsolidatedMaster(wb, tabNames, dateTabs, stockRows) {
             const NAVY = 'FF011D33';
             const ws = wb.addWorksheet('Dikgomo Master', { properties: { tabColor: { argb: NAVY } } });
-            ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 4, topLeftCell: 'D5' }];
+            ws.views = [{ state: 'frozen', xSplit: 4, ySplit: 4, topLeftCell: 'E5' }];
             const nDates = tabNames.length;
-            const lastCol = 3 + nDates + 3; // dates + Times Present/Absent/Attendance %
+            const lastCol = 4 + nDates + 3; // On Farm col + dates + Times Present/Absent/Attendance %
             const lastColL = colLetter(lastCol);
 
             ws.mergeCells('A1:' + lastColL + '1');
@@ -4705,10 +4715,15 @@
             ws.getCell('A2').value = 'All registers consolidated by date.';
             statusFill(ws.getCell('C2'), 'Present');
             statusFill(ws.getCell('D2'), 'Absent');
-            ws.getCell('F2').value = 'Updated ' + new Date().toLocaleDateString('en-ZA') + ' · ' + stockRows.length + ' animals · ' + nDates + ' registers';
+            const lg = ws.getCell('E2');
+            lg.value = 'No longer on farm';
+            lg.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+            lg.font = { color: { argb: 'FF7F7F7F' }, bold: true, italic: true };
+            lg.alignment = { horizontal: 'center' };
+            ws.getCell('G2').value = 'Updated ' + new Date().toLocaleDateString('en-ZA') + ' · ' + stockRows.length + ' animals · ' + nDates + ' registers';
 
             const HDR = 4;
-            const heads = ['Tag No', 'Stock Type', 'Group']
+            const heads = ['Tag No', 'Stock Type', 'Group', 'On Farm']
                 .concat(tabNames.map(dmyTabLabel))
                 .concat(['Times Present', 'Times Absent', 'Attendance %']);
             heads.forEach(function (h, i) {
@@ -4717,23 +4732,34 @@
                 cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
                 cell.border = { left: { style: 'thin', color: { argb: 'FFD9D9D9' } }, right: { style: 'thin', color: { argb: 'FFD9D9D9' } }, top: { style: 'thin', color: { argb: 'FFD9D9D9' } }, bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } } };
-                cell.alignment = (i >= 3 && i < 3 + nDates)
+                cell.alignment = (i >= 4 && i < 4 + nDates)
                     ? { textRotation: 90, horizontal: 'center', vertical: 'center' }
                     : { horizontal: 'center', vertical: 'center', wrapText: true };
             });
             ws.getRow(HDR).height = 95;
 
-            const firstDateL = colLetter(4), lastDateL = colLetter(3 + nDates);
-            const tpL = colLetter(4 + nDates), taL = colLetter(5 + nDates);
+            const firstDateL = colLetter(5), lastDateL = colLetter(4 + nDates);
+            const tpL = colLetter(5 + nDates), taL = colLetter(6 + nDates);
+            const GREY_BG = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
             let r = HDR + 1;
             stockRows.forEach(function (row) {
+                const inactive = row.onFarm === 'No';
                 ws.getCell(r, 1).value = row.id;
                 ws.getCell(r, 1).alignment = { horizontal: 'center' };
                 ws.getCell(r, 2).value = row.stockType;
                 ws.getCell(r, 3).value = row.group;
+                ws.getCell(r, 4).value = row.onFarm || 'Yes';
+                ws.getCell(r, 4).alignment = { horizontal: 'center' };
+                if (inactive) {
+                    for (let c = 1; c <= 4; c++) {
+                        const ic = ws.getCell(r, c);
+                        ic.fill = GREY_BG;
+                        ic.font = { color: { argb: 'FF7F7F7F' }, italic: true };
+                    }
+                }
                 tabNames.forEach(function (name, j) {
                     const st = dateTabs[name].status[row.id];
-                    const cell = ws.getCell(r, 4 + j);
+                    const cell = ws.getCell(r, 5 + j);
                     if (st) {
                         cell.value = st;
                         statusFill(cell, st);
@@ -4743,12 +4769,12 @@
                     cell.border = { left: { style: 'thin', color: { argb: 'FFD9D9D9' } }, right: { style: 'thin', color: { argb: 'FFD9D9D9' } }, top: { style: 'thin', color: { argb: 'FFD9D9D9' } }, bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } } };
                 });
                 if (nDates > 0) {
-                    ws.getCell(r, 4 + nDates).value = { formula: 'COUNTIF(' + firstDateL + r + ':' + lastDateL + r + ',"Present")' };
-                    ws.getCell(r, 5 + nDates).value = { formula: 'COUNTIF(' + firstDateL + r + ':' + lastDateL + r + ',"Absent")' };
-                    const pc = ws.getCell(r, 6 + nDates);
+                    ws.getCell(r, 5 + nDates).value = { formula: 'COUNTIF(' + firstDateL + r + ':' + lastDateL + r + ',"Present")' };
+                    ws.getCell(r, 6 + nDates).value = { formula: 'COUNTIF(' + firstDateL + r + ':' + lastDateL + r + ',"Absent")' };
+                    const pc = ws.getCell(r, 7 + nDates);
                     pc.value = { formula: 'IF(' + tpL + r + '+' + taL + r + '=0,"",' + tpL + r + '/(' + tpL + r + '+' + taL + r + '))' };
                     pc.numFmt = '0%';
-                    for (let c = 4 + nDates; c <= 6 + nDates; c++) ws.getCell(r, c).alignment = { horizontal: 'center' };
+                    for (let c = 5 + nDates; c <= 7 + nDates; c++) ws.getCell(r, c).alignment = { horizontal: 'center' };
                 }
                 r++;
             });
@@ -4756,8 +4782,9 @@
             ws.getColumn(1).width = 10;
             ws.getColumn(2).width = 10;
             ws.getColumn(3).width = 9;
-            for (let c = 4; c <= 3 + nDates; c++) ws.getColumn(c).width = 6.2;
-            for (let c = 4 + nDates; c <= 6 + nDates; c++) ws.getColumn(c).width = 9;
+            ws.getColumn(4).width = 8;
+            for (let c = 5; c <= 4 + nDates; c++) ws.getColumn(c).width = 6.2;
+            for (let c = 5 + nDates; c <= 7 + nDates; c++) ws.getColumn(c).width = 9;
             ws.autoFilter = { from: 'A' + HDR, to: lastColL + last };
             return ws;
         }
@@ -4783,7 +4810,7 @@
         function addFarmStockSheet(wb, stockRows) {
             const master = wb.addWorksheet('Farm Stock Master', { properties: { tabColor: { argb: 'FF011D33' } } });
             master.addRow(['Stock Type', 'Tag No', 'Group', 'Active On Farm']);
-            stockRows.forEach(function (row) { master.addRow([row.stockType, row.id, row.group, 'Yes']); });
+            stockRows.forEach(function (row) { master.addRow([row.stockType, row.id, row.group, row.onFarm || 'Yes']); });
             for (let c = 1; c <= 4; c++) {
                 const cell = master.getCell(1, c);
                 cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -4817,9 +4844,11 @@
             try { await ensureExcelJS(); }
             catch (e) { alert('Could not load the spreadsheet tool. Check your connection and try again.'); return; }
 
-            const stockRows = sortedStockRows();
             const dateTabs = {}; // tab name -> { ts, status: {tagId: 'Present'|'Absent'} }
+            const baseStock = {}; // tag -> { stockType, group } from the base file's Farm Stock Master
             let oldMasterWs = null;
+
+            const activeRows = sortStockRows(farmStockRows().map(function (r) { r.onFarm = 'Yes'; return r; }));
 
             // history from the base workbook on the server
             try {
@@ -4829,7 +4858,14 @@
                     await base.xlsx.load(await resp.arrayBuffer());
                     base.eachSheet(function (ws) {
                         if (ws.name === 'Dikgomo Master') { oldMasterWs = ws; return; }
-                        if (ws.name === 'Farm Stock Master' || ws.name === 'Old Master (Archive)') return;
+                        if (ws.name === 'Old Master (Archive)') return;
+                        if (ws.name === 'Farm Stock Master') {
+                            for (let r = 2; r <= ws.rowCount; r++) {
+                                const tag = ws.getCell(r, 2).value;
+                                if (tag != null) baseStock[String(tag).trim()] = { stockType: String(ws.getCell(r, 1).value || ''), group: String(ws.getCell(r, 3).value || '') };
+                            }
+                            return;
+                        }
                         const ts = dmyTabTs(ws.name);
                         if (ts == null) return;
                         const h1 = String(ws.getCell(1, 1).value || '').trim();
@@ -4853,16 +4889,24 @@
                 const name = ymdToDmy(ymd);
                 const present = byDate[ymd];
                 const map = {};
-                stockRows.forEach(function (row) { map[row.id] = present[row.id] ? 'Present' : 'Absent'; });
+                activeRows.forEach(function (row) { map[row.id] = present[row.id] ? 'Present' : 'Absent'; });
                 dateTabs[name] = { ts: dmyTabTs(name), status: map };
             });
+
+            const allRows = allStockRows();
+            const known = {};
+            allRows.forEach(function (r) { known[r.id] = true; });
+            Object.keys(baseStock).forEach(function (tag) {
+                if (!known[tag]) allRows.push({ stockType: baseStock[tag].stockType || 'Cattle', id: tag, group: baseStock[tag].group || '', onFarm: 'No' });
+            });
+            const stockRows = sortStockRows(allRows); // master page: active + greyed inactive + history-only
 
             const tabNames = Object.keys(dateTabs).sort(function (a, b) { return dateTabs[a].ts - dateTabs[b].ts; });
 
             // build fresh, in final tab order: Master, dates (oldest first), Farm Stock, Archive
             const wb = new ExcelJS.Workbook();
             buildConsolidatedMaster(wb, tabNames, dateTabs, stockRows);
-            tabNames.forEach(function (n) { addDateSheet(wb, n, dateTabs[n].status, stockRows); });
+            tabNames.forEach(function (n) { addDateSheet(wb, n, dateTabs[n].status, activeRows); });
             addFarmStockSheet(wb, stockRows);
             if (oldMasterWs) { try { copyArchiveSheet(wb, oldMasterWs); } catch (e) {} }
 
