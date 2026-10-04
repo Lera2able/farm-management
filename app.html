@@ -899,7 +899,7 @@
                     <div class="action-card" onclick="downloadMaster()">
                         <div class="action-icon">📒</div>
                         <div class="action-title">Download Master</div>
-                        <div class="action-desc">Full workbook, a tab per date</div>
+                        <div class="action-desc">Full workbook: master page + a tab per date</div>
                     </div>
                     <div class="action-card" onclick="showAuditTrail()">
                         <div class="action-icon">🧾</div>
@@ -4655,52 +4655,217 @@
             ws.getColumn(2).width = 14;
             if (fullStyle) ws.getColumn(3).width = 12;
         }
-        async function downloadMaster() {
-            try { await ensureExcelJS(); }
-            catch (e) { alert('Could not load the spreadsheet tool. Check your connection and try again.'); return; }
-            const wb = new ExcelJS.Workbook();
-            let haveBase = false;
-            try {
-                const resp = await fetch('master_stock.xlsx', { cache: 'no-store' });
-                if (resp.ok) { await wb.xlsx.load(await resp.arrayBuffer()); haveBase = true; }
-            } catch (e) { haveBase = false; }
-            if (!haveBase) {
-                const ws = wb.addWorksheet('Dikgomo Master');
-                ws.addRow(['Tag No', 'Group', 'Status']);
-                ws.getRow(1).font = { bold: true };
-                LIVESTOCK_DATA.forEach(function (l) { ws.addRow([l.id, l.group, l.is_inactive ? 'Inactive' : 'Active']); });
+        // ----- Consolidated Master export (Khumotaka format) -----
+        // First tab = one page with every animal x every register date,
+        // green = Present, red = Absent. Date tabs follow in date order.
+        function dmyTabTs(name) {
+            const m = /^(\d{2})-(\d{2})-(\d{4})/.exec(String(name || '').trim());
+            if (!m) return null;
+            return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
+        }
+        function dmyTabLabel(name) {
+            const m = /^(\d{2})-(\d{2})-(\d{4})(.*)$/.exec(String(name || '').trim());
+            if (!m) return String(name);
+            return m[1] + '/' + m[2] + '/' + m[3] + (m[4] || '');
+        }
+        function colLetter(n) {
+            let s = '';
+            while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+            return s;
+        }
+        function tagSortKey(t) {
+            return /^\d+$/.test(t) ? [0, Number(t)] : [1, t];
+        }
+        function sortedStockRows() {
+            const typeOrder = { 'Cattle': 0, 'Goat': 1, 'Sheep': 2 };
+            return farmStockRows().slice().sort(function (a, b) {
+                const dt = (typeOrder[a.stockType] != null ? typeOrder[a.stockType] : 9) - (typeOrder[b.stockType] != null ? typeOrder[b.stockType] : 9);
+                if (dt !== 0) return dt;
+                const ka = tagSortKey(a.id), kb = tagSortKey(b.id);
+                if (ka[0] !== kb[0]) return ka[0] - kb[0];
+                return ka[0] === 0 ? ka[1] - kb[1] : (ka[1] < kb[1] ? -1 : ka[1] > kb[1] ? 1 : 0);
+            });
+        }
+        function buildConsolidatedMaster(wb, tabNames, dateTabs, stockRows) {
+            const NAVY = 'FF011D33';
+            const ws = wb.addWorksheet('Dikgomo Master', { properties: { tabColor: { argb: NAVY } } });
+            ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 4, topLeftCell: 'D5' }];
+            const nDates = tabNames.length;
+            const lastCol = 3 + nDates + 3; // dates + Times Present/Absent/Attendance %
+            const lastColL = colLetter(lastCol);
+
+            ws.mergeCells('A1:' + lastColL + '1');
+            const title = ws.getCell('A1');
+            title.value = 'KHUMOTAKA FARMING — DIKGOMO MASTER REGISTER';
+            title.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 14 };
+            title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+            title.alignment = { horizontal: 'center', vertical: 'center' };
+            ws.getRow(1).height = 30;
+
+            ws.getCell('A2').value = 'All registers consolidated by date.';
+            statusFill(ws.getCell('C2'), 'Present');
+            statusFill(ws.getCell('D2'), 'Absent');
+            ws.getCell('F2').value = 'Updated ' + new Date().toLocaleDateString('en-ZA') + ' · ' + stockRows.length + ' animals · ' + nDates + ' registers';
+
+            const HDR = 4;
+            const heads = ['Tag No', 'Stock Type', 'Group']
+                .concat(tabNames.map(dmyTabLabel))
+                .concat(['Times Present', 'Times Absent', 'Attendance %']);
+            heads.forEach(function (h, i) {
+                const cell = ws.getCell(HDR, i + 1);
+                cell.value = h;
+                cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+                cell.border = { left: { style: 'thin', color: { argb: 'FFD9D9D9' } }, right: { style: 'thin', color: { argb: 'FFD9D9D9' } }, top: { style: 'thin', color: { argb: 'FFD9D9D9' } }, bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } } };
+                cell.alignment = (i >= 3 && i < 3 + nDates)
+                    ? { textRotation: 90, horizontal: 'center', vertical: 'center' }
+                    : { horizontal: 'center', vertical: 'center', wrapText: true };
+            });
+            ws.getRow(HDR).height = 95;
+
+            const firstDateL = colLetter(4), lastDateL = colLetter(3 + nDates);
+            const tpL = colLetter(4 + nDates), taL = colLetter(5 + nDates);
+            let r = HDR + 1;
+            stockRows.forEach(function (row) {
+                ws.getCell(r, 1).value = row.id;
+                ws.getCell(r, 1).alignment = { horizontal: 'center' };
+                ws.getCell(r, 2).value = row.stockType;
+                ws.getCell(r, 3).value = row.group;
+                tabNames.forEach(function (name, j) {
+                    const st = dateTabs[name].status[row.id];
+                    const cell = ws.getCell(r, 4 + j);
+                    if (st) {
+                        cell.value = st;
+                        statusFill(cell, st);
+                        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 8 };
+                        cell.alignment = { horizontal: 'center' };
+                    }
+                    cell.border = { left: { style: 'thin', color: { argb: 'FFD9D9D9' } }, right: { style: 'thin', color: { argb: 'FFD9D9D9' } }, top: { style: 'thin', color: { argb: 'FFD9D9D9' } }, bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } } };
+                });
+                if (nDates > 0) {
+                    ws.getCell(r, 4 + nDates).value = { formula: 'COUNTIF(' + firstDateL + r + ':' + lastDateL + r + ',"Present")' };
+                    ws.getCell(r, 5 + nDates).value = { formula: 'COUNTIF(' + firstDateL + r + ':' + lastDateL + r + ',"Absent")' };
+                    const pc = ws.getCell(r, 6 + nDates);
+                    pc.value = { formula: 'IF(' + tpL + r + '+' + taL + r + '=0,"",' + tpL + r + '/(' + tpL + r + '+' + taL + r + '))' };
+                    pc.numFmt = '0%';
+                    for (let c = 4 + nDates; c <= 6 + nDates; c++) ws.getCell(r, c).alignment = { horizontal: 'center' };
+                }
+                r++;
+            });
+            const last = r - 1;
+            ws.getColumn(1).width = 10;
+            ws.getColumn(2).width = 10;
+            ws.getColumn(3).width = 9;
+            for (let c = 4; c <= 3 + nDates; c++) ws.getColumn(c).width = 6.2;
+            for (let c = 4 + nDates; c <= 6 + nDates; c++) ws.getColumn(c).width = 9;
+            ws.autoFilter = { from: 'A' + HDR, to: lastColL + last };
+            return ws;
+        }
+        function addDateSheet(wb, name, statusMap, stockRows) {
+            const ws = wb.addWorksheet(name.slice(0, 31));
+            ws.addRow(['Stock Type', 'Tag No', 'Status']);
+            for (let c = 1; c <= 3; c++) {
+                const cell = ws.getCell(1, c);
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF011D33' } };
+                cell.alignment = { horizontal: 'center' };
             }
-            const byDate = allPresentByDate();
-            const stockRows = farmStockRows();
-            const existingByName = {};
-            wb.eachSheet(function (ws) { existingByName[ws.name] = ws; });
-            if (existingByName['Farm Stock Master']) wb.removeWorksheet(existingByName['Farm Stock Master'].id);
-            const master = wb.addWorksheet('Farm Stock Master', { properties: { tabColor: { argb: 'FF1F4E78' } } });
+            stockRows.forEach(function (row) {
+                const st = statusMap[row.id];
+                if (!st) return;
+                const xr = ws.addRow([row.stockType, row.id, st]);
+                statusFill(xr.getCell(3), st);
+            });
+            ws.getColumn(1).width = 14;
+            ws.getColumn(2).width = 14;
+            ws.getColumn(3).width = 12;
+        }
+        function addFarmStockSheet(wb, stockRows) {
+            const master = wb.addWorksheet('Farm Stock Master', { properties: { tabColor: { argb: 'FF011D33' } } });
             master.addRow(['Stock Type', 'Tag No', 'Group', 'Active On Farm']);
             stockRows.forEach(function (row) { master.addRow([row.stockType, row.id, row.group, 'Yes']); });
             for (let c = 1; c <= 4; c++) {
                 const cell = master.getCell(1, c);
                 cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF011D33' } };
                 cell.alignment = { horizontal: 'center' };
             }
             master.getColumn(1).width = 14;
             master.getColumn(2).width = 14;
             master.getColumn(3).width = 12;
             master.getColumn(4).width = 14;
-            let updated = 0;
-            Object.keys(byDate).sort().forEach(function (ymd) {
-                const sheetName = ymdToDmy(ymd).slice(0, 31);
-                if (existingByName[sheetName]) wb.removeWorksheet(existingByName[sheetName].id);
-                const present = byDate[ymd];
-                const ws = wb.addWorksheet(sheetName);
-                ws.addRow(['Stock Type', 'Tag No', 'Status']);
-                stockRows.forEach(function (row) {
-                    ws.addRow([row.stockType, row.id, present[row.id] ? 'Present' : 'Absent']);
+        }
+        function copyArchiveSheet(wb, srcWs) {
+            const ws = wb.addWorksheet('Old Master (Archive)');
+            srcWs.eachRow({ includeEmpty: false }, function (row, r) {
+                row.eachCell({ includeEmpty: false }, function (cell, c) {
+                    const dst = ws.getCell(r, c);
+                    dst.value = cell.value;
+                    try {
+                        if (cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb && cell.fill.fgColor.argb !== '00000000') {
+                            dst.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cell.fill.fgColor.argb } };
+                        }
+                        if (cell.font && (cell.font.bold || (cell.font.color && cell.font.color.argb))) {
+                            dst.font = { bold: !!cell.font.bold, color: cell.font.color && cell.font.color.argb ? { argb: cell.font.color.argb } : undefined };
+                        }
+                        if (cell.alignment && cell.alignment.textRotation) dst.alignment = { textRotation: cell.alignment.textRotation };
+                    } catch (e) {}
                 });
-                updated++;
             });
-            wb.eachSheet(function (ws) { try { colourDateSheet(ws); } catch (e) {} });
+        }
+        async function downloadMaster() {
+            try { await ensureExcelJS(); }
+            catch (e) { alert('Could not load the spreadsheet tool. Check your connection and try again.'); return; }
+
+            const stockRows = sortedStockRows();
+            const dateTabs = {}; // tab name -> { ts, status: {tagId: 'Present'|'Absent'} }
+            let oldMasterWs = null;
+
+            // history from the base workbook on the server
+            try {
+                const resp = await fetch('master_stock.xlsx', { cache: 'no-store' });
+                if (resp.ok) {
+                    const base = new ExcelJS.Workbook();
+                    await base.xlsx.load(await resp.arrayBuffer());
+                    base.eachSheet(function (ws) {
+                        if (ws.name === 'Dikgomo Master') { oldMasterWs = ws; return; }
+                        if (ws.name === 'Farm Stock Master' || ws.name === 'Old Master (Archive)') return;
+                        const ts = dmyTabTs(ws.name);
+                        if (ts == null) return;
+                        const h1 = String(ws.getCell(1, 1).value || '').trim();
+                        const fullStyle = h1 === 'Stock Type';
+                        const tagCol = fullStyle ? 2 : 1, stCol = fullStyle ? 3 : 2;
+                        const map = {};
+                        for (let r = 2; r <= ws.rowCount; r++) {
+                            const tag = ws.getCell(r, tagCol).value;
+                            const st = String(ws.getCell(r, stCol).value || '').trim();
+                            if (tag != null && (st === 'Present' || st === 'Absent')) map[String(tag).trim()] = st;
+                        }
+                        dateTabs[ws.name] = { ts: ts, status: map };
+                    });
+                }
+            } catch (e) { /* offline: app data still exported */ }
+
+            // this app's records win for their dates
+            const byDate = allPresentByDate();
+            Object.keys(byDate).forEach(function (ymd) {
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+                const name = ymdToDmy(ymd);
+                const present = byDate[ymd];
+                const map = {};
+                stockRows.forEach(function (row) { map[row.id] = present[row.id] ? 'Present' : 'Absent'; });
+                dateTabs[name] = { ts: dmyTabTs(name), status: map };
+            });
+
+            const tabNames = Object.keys(dateTabs).sort(function (a, b) { return dateTabs[a].ts - dateTabs[b].ts; });
+
+            // build fresh, in final tab order: Master, dates (oldest first), Farm Stock, Archive
+            const wb = new ExcelJS.Workbook();
+            buildConsolidatedMaster(wb, tabNames, dateTabs, stockRows);
+            tabNames.forEach(function (n) { addDateSheet(wb, n, dateTabs[n].status, stockRows); });
+            addFarmStockSheet(wb, stockRows);
+            if (oldMasterWs) { try { copyArchiveSheet(wb, oldMasterWs); } catch (e) {} }
+
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const today = new Date().toISOString().split('T')[0];
@@ -4710,7 +4875,7 @@
             document.body.appendChild(a); a.click();
             setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
             setTimeout(function () {
-                alert(updated > 0 ? ('Master downloaded with ' + updated + ' full-stock date tab(s), colour coded.') : 'Master downloaded, colour coded.');
+                alert('Master downloaded: 1 consolidated page + ' + tabNames.length + ' date tab(s) in date order, colour coded.');
             }, 200);
         }
 
