@@ -1,9 +1,8 @@
-// Service Worker - network-first so new commits reach devices as soon as they
-// are online, while still working offline from the last good copy.
-// v14: forces every device to re-cache the full file set (older caches were
-// filled while several app files were missing from the server), and re-heals
-// any missing cached files on every activation.
-const CACHE_NAME = 'dikgomo-v14';
+// Service Worker - cache-first (stale-while-revalidate): the app opens
+// instantly from the last good copy no matter how bad the signal is, and
+// updates itself in the background whenever there is a connection.
+// v15: permanent fix for 'app not working offline / on weak signal'.
+const CACHE_NAME = 'dikgomo-v15';
 const CORE = [
   './',
   './index.html',
@@ -46,6 +45,17 @@ const CACHEABLE_CDN_HOSTS = [
 function precacheAll(cache) {
     // add each file on its own so one missing file can't fail the rest
     return Promise.all(CORE.concat(EXTERNAL).map((u) => cache.add(u).catch(() => null)));
+}
+
+// Fetch fresh copy and update the cache; never throws (null on failure).
+function revalidate(req) {
+    return fetch(req).then((res) => {
+        if (res && res.status === 200 && (res.type === 'basic' || res.type === 'default')) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        }
+        return res;
+    }).catch(() => null);
 }
 
 self.addEventListener('install', (event) => {
@@ -91,25 +101,25 @@ self.addEventListener('fetch', (event) => {
     // Let other cross-origin requests (Supabase APIs, email, etc.) go straight to the network.
     if (url.origin !== self.location.origin) return;
 
-    // Network-first: try the freshest file; fall back to cache when offline.
+    // Cache-first for our own files: instant response from the last good
+    // copy (offline or weak signal), background update when online.
     event.respondWith(
-        fetch(req)
-            .then((res) => {
-                if (res && res.status === 200 && (res.type === 'basic' || res.type === 'default')) {
-                    const copy = res.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        caches.match(req).then((hit) => {
+            const net = revalidate(req);
+            if (hit) {
+                event.waitUntil(net);
+                return hit;
+            }
+            // nothing cached yet - must go to the network
+            return net.then((res) => {
+                if (res) return res;
+                // offline and uncached: for a page load, serve the register or home page
+                if (req.mode === 'navigate') {
+                    return caches.match('./app.html').then((a) => a || caches.match('./index.html'));
                 }
-                return res;
-            })
-            .catch(() =>
-                caches.match(req).then((hit) =>
-                    hit ||
-                    // for an uncached navigation, serve the register, then the home page
-                    (req.mode === 'navigate'
-                        ? caches.match('./app.html').then((a) => a || caches.match('./index.html'))
-                        : undefined)
-                )
-            )
+                return new Response('Offline and file not cached', { status: 504 });
+            });
+        })
     );
 });
 
