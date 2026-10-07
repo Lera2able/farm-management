@@ -87,11 +87,21 @@ class LivestockDB {
         };
     }
 
+    // Promisify an IDB request and return its result.
+    // (awaiting an IDBRequest directly returns the request, NOT the value -
+    //  every .get() below needs its .result unwrapped properly)
+    _req(request) {
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
     // Save shepherd name
     async saveShepherd(name) {
         const tx = this.db.transaction(['shepherd'], 'readwrite');
         const store = tx.objectStore('shepherd');
-        await store.put({ id: 'current', name, timestamp: Date.now() });
+        await this._req(store.put({ id: 'current', name, timestamp: Date.now() }));
         return tx.complete;
     }
 
@@ -99,7 +109,7 @@ class LivestockDB {
     async getShepherd() {
         const tx = this.db.transaction(['shepherd'], 'readonly');
         const store = tx.objectStore('shepherd');
-        return await store.get('current');
+        return this._req(store.get('current'));
     }
 
     // Save attendance record
@@ -115,7 +125,7 @@ class LivestockDB {
             ...this.buildSyncMeta()
         };
         
-        await store.add(record);
+        await this._req(store.add(record));
         return tx.complete;
     }
 
@@ -125,11 +135,11 @@ class LivestockDB {
         if (!this.db) return []; // DB not open yet/failed - nothing to sync right now
         const tx = this.db.transaction(['attendance'], 'readonly');
         const store = tx.objectStore('attendance');
-        const index = store.index('synced');
-        
+        // NOTE: booleans are not valid IndexedDB keys, so the 'synced' index
+        // cannot be queried with getAll(false) - read all and filter instead.
         return new Promise((resolve, reject) => {
-            const request = index.getAll(false);
-            request.onsuccess = () => resolve(request.result);
+            const request = store.getAll();
+            request.onsuccess = () => resolve((request.result || []).filter((r) => r.synced !== true));
             request.onerror = () => reject(request.error);
         });
     }
@@ -139,13 +149,13 @@ class LivestockDB {
         const tx = this.db.transaction(['attendance'], 'readwrite');
         const store = tx.objectStore('attendance');
         
-        const record = await store.get(id);
+        const record = await this._req(store.get(id));
         if (record) {
             record.synced = true;
             record.syncStatus = 'synced';
             record.lastSyncError = '';
             record.lastSyncAt = Date.now();
-            await store.put(record);
+            await this._req(store.put(record));
         }
         return tx.complete;
     }
@@ -153,14 +163,14 @@ class LivestockDB {
     async markAttendanceFailed(id, error) {
         const tx = this.db.transaction(['attendance'], 'readwrite');
         const store = tx.objectStore('attendance');
-        const record = await store.get(id);
+        const record = await this._req(store.get(id));
         if (record) {
             record.synced = false;
             record.syncStatus = 'failed';
             record.syncAttempts = (record.syncAttempts || 0) + 1;
             record.lastSyncError = String(error || 'sync failed');
             record.lastSyncAt = Date.now();
-            await store.put(record);
+            await this._req(store.put(record));
         }
         return tx.complete;
     }
@@ -168,12 +178,12 @@ class LivestockDB {
     async markAttendanceSyncing(id) {
         const tx = this.db.transaction(['attendance'], 'readwrite');
         const store = tx.objectStore('attendance');
-        const record = await store.get(id);
+        const record = await this._req(store.get(id));
         if (record) {
             record.syncStatus = 'syncing';
             record.syncAttempts = (record.syncAttempts || 0) + 1;
             record.lastSyncAt = Date.now();
-            await store.put(record);
+            await this._req(store.put(record));
         }
         return tx.complete;
     }
@@ -190,7 +200,7 @@ class LivestockDB {
             ...this.buildSyncMeta()
         };
         
-        await store.add(action);
+        await this._req(store.add(action));
         return tx.complete;
     }
 
@@ -200,11 +210,11 @@ class LivestockDB {
         if (!this.db) return []; // DB not open yet/failed - nothing to sync right now
         const tx = this.db.transaction(['pendingActions'], 'readonly');
         const store = tx.objectStore('pendingActions');
-        const index = store.index('synced');
-        
+        // NOTE: booleans are not valid IndexedDB keys, so the 'synced' index
+        // cannot be queried with getAll(false) - read all and filter instead.
         return new Promise((resolve, reject) => {
-            const request = index.getAll(false);
-            request.onsuccess = () => resolve(request.result);
+            const request = store.getAll();
+            request.onsuccess = () => resolve((request.result || []).filter((r) => r.synced !== true));
             request.onerror = () => reject(request.error);
         });
     }
@@ -214,13 +224,13 @@ class LivestockDB {
         const tx = this.db.transaction(['pendingActions'], 'readwrite');
         const store = tx.objectStore('pendingActions');
         
-        const record = await store.get(id);
+        const record = await this._req(store.get(id));
         if (record) {
             record.synced = true;
             record.syncStatus = 'synced';
             record.lastSyncError = '';
             record.lastSyncAt = Date.now();
-            await store.put(record);
+            await this._req(store.put(record));
         }
         return tx.complete;
     }
@@ -228,14 +238,14 @@ class LivestockDB {
     async markActionFailed(id, error) {
         const tx = this.db.transaction(['pendingActions'], 'readwrite');
         const store = tx.objectStore('pendingActions');
-        const record = await store.get(id);
+        const record = await this._req(store.get(id));
         if (record) {
             record.synced = false;
             record.syncStatus = 'failed';
             record.syncAttempts = (record.syncAttempts || 0) + 1;
             record.lastSyncError = String(error || 'sync failed');
             record.lastSyncAt = Date.now();
-            await store.put(record);
+            await this._req(store.put(record));
         }
         return tx.complete;
     }
@@ -243,12 +253,12 @@ class LivestockDB {
     async markActionSyncing(id) {
         const tx = this.db.transaction(['pendingActions'], 'readwrite');
         const store = tx.objectStore('pendingActions');
-        const record = await store.get(id);
+        const record = await this._req(store.get(id));
         if (record) {
             record.syncStatus = 'syncing';
             record.syncAttempts = (record.syncAttempts || 0) + 1;
             record.lastSyncAt = Date.now();
-            await store.put(record);
+            await this._req(store.put(record));
         }
         return tx.complete;
     }
@@ -258,11 +268,11 @@ class LivestockDB {
         const tx = this.db.transaction(['localState'], 'readwrite');
         const store = tx.objectStore('localState');
         
-        await store.put({
+        await this._req(store.put({
             livestockId,
             isPresent,
             timestamp: Date.now()
-        });
+        }));
         return tx.complete;
     }
 
@@ -288,7 +298,7 @@ class LivestockDB {
     async clearLocalState() {
         const tx = this.db.transaction(['localState'], 'readwrite');
         const store = tx.objectStore('localState');
-        await store.clear();
+        await this._req(store.clear());
         return tx.complete;
     }
 
@@ -307,18 +317,18 @@ class LivestockDB {
     async saveCache(key, value) {
         const tx = this.db.transaction(['cache'], 'readwrite');
         const store = tx.objectStore('cache');
-        await store.put({
+        await this._req(store.put({
             key,
             value,
             updatedAt: Date.now()
-        });
+        }));
         return tx.complete;
     }
 
     async getCache(key) {
         const tx = this.db.transaction(['cache'], 'readonly');
         const store = tx.objectStore('cache');
-        return await store.get(key);
+        return this._req(store.get(key));
     }
 
     async saveScanDraft(draft) {
@@ -331,7 +341,7 @@ class LivestockDB {
             updatedAt: Date.now(),
             ...draft
         };
-        await store.add(record);
+        await this._req(store.add(record));
         return tx.complete;
     }
 
@@ -349,11 +359,11 @@ class LivestockDB {
     async markScanDraftProcessed(id) {
         const tx = this.db.transaction(['scanDrafts'], 'readwrite');
         const store = tx.objectStore('scanDrafts');
-        const draft = await store.get(id);
+        const draft = await this._req(store.get(id));
         if (draft) {
             draft.status = 'processed';
             draft.updatedAt = Date.now();
-            await store.put(draft);
+            await this._req(store.put(draft));
         }
         return tx.complete;
     }
