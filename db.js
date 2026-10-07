@@ -4,10 +4,12 @@ class LivestockDB {
         this.dbName = 'LivestockAttendanceDB';
         this.version = 2;
         this.db = null;
+        this.ready = null; // resolves once the DB is open (set by init)
     }
 
     async init() {
-        return new Promise((resolve, reject) => {
+        if (this.ready) return this.ready;
+        this.ready = new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.version);
 
             request.onerror = () => reject(request.error);
@@ -70,6 +72,7 @@ class LivestockDB {
                 }
             };
         });
+        return this.ready;
     }
 
     buildSyncMeta(overrides = {}) {
@@ -118,6 +121,8 @@ class LivestockDB {
 
     // Get unsynced attendance records
     async getUnsyncedAttendance() {
+        if (!this.db) { try { await this.ready; } catch (e) {} }
+        if (!this.db) return []; // DB not open yet/failed - nothing to sync right now
         const tx = this.db.transaction(['attendance'], 'readonly');
         const store = tx.objectStore('attendance');
         const index = store.index('synced');
@@ -191,6 +196,8 @@ class LivestockDB {
 
     // Get unsynced pending actions
     async getUnsyncedActions() {
+        if (!this.db) { try { await this.ready; } catch (e) {} }
+        if (!this.db) return []; // DB not open yet/failed - nothing to sync right now
         const tx = this.db.transaction(['pendingActions'], 'readonly');
         const store = tx.objectStore('pendingActions');
         const index = store.index('synced');
