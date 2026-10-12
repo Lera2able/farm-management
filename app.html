@@ -3436,11 +3436,45 @@
             } catch (e) { console.log('pullHealth skipped:', e.message); }
         }
 
+        // ---- email-once per register date (covers registers taken offline) ----
+        function emailedDatesMap() {
+            try { return JSON.parse(localStorage.getItem('khumotaka_emailed_dates') || '{}'); } catch (e) { return {}; }
+        }
+        function wasRegisterEmailed(date) { return !!emailedDatesMap()[date]; }
+        function markRegisterEmailed(date) {
+            const m = emailedDatesMap(); m[date] = true;
+            localStorage.setItem('khumotaka_emailed_dates', JSON.stringify(m));
+        }
+        // Sends the summary email for a register date if none was sent yet
+        // (e.g. the register was taken offline and only now synced).
+        async function emailRegisterIfNeeded(date) {
+            if (!navigator.onLine || wasRegisterEmailed(date)) return;
+            if (!window.FarmData || !window.FarmData.notifyAttendance) return;
+            try {
+                const present = Object.keys(presentSetForDate(date));
+                const activeLivestock = LIVESTOCK_DATA.filter(function (l) { return !l.is_inactive; });
+                const r = await window.FarmData.notifyAttendance({
+                    date: formatDate(date),
+                    shepherd: actorName(),
+                    present: present.length,
+                    absent: activeLivestock.length - present.length,
+                    total: activeLivestock.length,
+                    percentage: ((present.length / activeLivestock.length) * 100).toFixed(1),
+                    comment: '(Register e ne e tsewa kwa polasing o se mo inthaneteng; e rometswe fa founu e boela inthaneteng. - Taken offline on the farm, emailed on sync.)'
+                });
+                if (r && r.ok && r.sent) markRegisterEmailed(date);
+            } catch (e) { /* will retry on the next sync */ }
+        }
+        window.emailRegisterIfNeeded = emailRegisterIfNeeded;
+
         // When the phone regains signal, push everything queued, then refresh.
         async function flushPending() {
             if (!navigator.onLine || !window.FarmData) return;
             const dates = Object.keys(pendingDates);
-            for (let i = 0; i < dates.length; i++) { await pushAttendance(dates[i]); }
+            for (let i = 0; i < dates.length; i++) {
+                const pr = await pushAttendance(dates[i]);
+                if (pr && pr.ok) await emailRegisterIfNeeded(dates[i]);
+            }
             const goatDates = Object.keys(pendingSmallStock.goats || {});
             for (let i = 0; i < goatDates.length; i++) { await pushSmallStockAttendance('goats', goatDates[i], ''); }
             const sheepDates = Object.keys(pendingSmallStock.sheep || {});
@@ -4055,7 +4089,7 @@
                             percentage: ((presentCount / activeLivestock.length) * 100).toFixed(1),
                             comment: attendanceComment
                         });
-                        if (r && r.ok && r.sent) { emailNote = ' Email sent!'; }
+                        if (r && r.ok && r.sent) { emailNote = ' Email sent!'; markRegisterEmailed(selectedDate); }
                         else { emailFailed = true; emailReason = (r && (r.reason || r.error)) || 'no response'; emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>'; }
                     } catch (e) { emailFailed = true; emailReason = 'send error'; emailNote = ' <span style="color:#b91c1c;">Email NOT sent</span>'; }
                 }
