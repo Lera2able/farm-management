@@ -88,7 +88,7 @@ async function autoSync() {
                 syncedCount += 1;
             } catch (error) {
                 failedCount += 1;
-                if (db.markActionFailed) await db.markActionFailed(record.id, error && error.message ? error.message : error);
+                if (db.markActionFailed) await db.markActionFailed(action.id, error && error.message ? error.message : error);
             }
         }
 
