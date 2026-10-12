@@ -71,6 +71,9 @@ async function autoSync() {
                 await syncAttendanceRecord(record);
                 await db.markAttendanceSynced(record.id);
                 syncedCount += 1;
+                if (typeof window !== 'undefined' && typeof window.emailRegisterIfNeeded === 'function') {
+                    try { await window.emailRegisterIfNeeded(record.date); } catch (e2) {}
+                }
             } catch (error) {
                 failedCount += 1;
                 if (db.markAttendanceFailed) await db.markAttendanceFailed(record.id, error && error.message ? error.message : error);
@@ -85,7 +88,7 @@ async function autoSync() {
                 syncedCount += 1;
             } catch (error) {
                 failedCount += 1;
-                if (db.markActionFailed) await db.markActionFailed(action.id, error && error.message ? error.message : error);
+                if (db.markActionFailed) await db.markActionFailed(record.id, error && error.message ? error.message : error);
             }
         }
 
