@@ -3996,8 +3996,10 @@
                 localStorage.setItem('dikgomo_attendance', JSON.stringify(attendance));
                 localStorage.setItem('khumotaka_smallstock_attendance', JSON.stringify(smallStockAttendance));
                 markDateDirty(selectedDate);
-                markSmallStockDirty('goats', selectedDate);
-                markSmallStockDirty('sheep', selectedDate);
+                // Small-stock dirty flags are set by actually tapping goat/sheep
+                // checkboxes - never here. Marking them on every cattle save made
+                // every save push empty "0 present" goat/sheep registers, and each
+                // of those triggered a misleading 0-present email.
 
                 let cloudNote = ' <span style="color:#92400e;">E bolokilwe mo founong, e tla romelwa fa o le inthaneteng. (Saved on this phone, will sync when online.)</span>';
                 if (navigator.onLine && window.FarmData && window.FarmData.saveAttendanceCloud) {
@@ -4005,8 +4007,13 @@
                     if (cr && cr.ok) cloudNote = ' <span style="color:#065f46;">Di romilwe go difounu tsotlhe. (Synced to all phones.)</span>';
                 }
                 if (navigator.onLine && window.FarmData && window.FarmData.saveSmallStockAttendanceCloud) {
-                    const goatSync = await pushSmallStockAttendance('goats', selectedDate, attendanceComment);
-                    const sheepSync = await pushSmallStockAttendance('sheep', selectedDate, attendanceComment);
+                    // Push a goat/sheep register only if it has unsynced local edits
+                    // (pendingSmallStock is set by real checkbox taps). This keeps
+                    // cattle-only days from creating empty small-stock registers.
+                    const goatSync = (pendingSmallStock.goats && pendingSmallStock.goats[selectedDate])
+                        ? await pushSmallStockAttendance('goats', selectedDate, attendanceComment) : null;
+                    const sheepSync = (pendingSmallStock.sheep && pendingSmallStock.sheep[selectedDate])
+                        ? await pushSmallStockAttendance('sheep', selectedDate, attendanceComment) : null;
                     if ((goatSync && goatSync.ok) || (sheepSync && sheepSync.ok)) {
                         cloudNote += ' <span style="color:#065f46;">Dipodi le dinku le tsone di rometswe. (Goat and sheep dates synced too.)</span>';
                     }
@@ -4892,6 +4899,46 @@
                 activeRows.forEach(function (row) { map[row.id] = present[row.id] ? 'Present' : 'Absent'; });
                 dateTabs[name] = { ts: dmyTabTs(name), status: map };
             });
+
+            // Shared cloud registers win for their dates, so the master always
+            // includes every register taken on ANY phone (e.g. registers synced
+            // from the farm that this device never saw locally).
+            try {
+                if (navigator.onLine && window.FarmData && window.FarmData.getAttendanceCloud) {
+                    const cloud = {};
+                    const cres = await window.FarmData.getAttendanceCloud();
+                    if (cres && cres.ok && Array.isArray(cres.rows)) {
+                        cres.rows.forEach(function (r) {
+                            const ymd = String(r.date).slice(0, 10);
+                            if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+                            if (!cloud[ymd]) cloud[ymd] = {};
+                            (Array.isArray(r.present_ids) ? r.present_ids : []).forEach(function (id) { cloud[ymd][String(id)] = true; });
+                        });
+                    }
+                    if (window.FarmData.getSmallStockAttendanceCloud) {
+                        const speciesList = ['goat', 'sheep'];
+                        for (let s = 0; s < speciesList.length; s++) {
+                            const sres = await window.FarmData.getSmallStockAttendanceCloud(speciesList[s]);
+                            if (!(sres && sres.ok && Array.isArray(sres.rows))) continue;
+                            sres.rows.forEach(function (r) {
+                                const ymd = String(r.date).slice(0, 10);
+                                if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+                                const ids = Array.isArray(r.present_ids) ? r.present_ids : [];
+                                if (!ids.length) return; // skip empty auto-created registers
+                                if (!cloud[ymd]) cloud[ymd] = {};
+                                ids.forEach(function (id) { cloud[ymd][String(id)] = true; });
+                            });
+                        }
+                    }
+                    Object.keys(cloud).forEach(function (ymd) {
+                        const name = ymdToDmy(ymd);
+                        const present = cloud[ymd];
+                        const map = {};
+                        activeRows.forEach(function (row) { map[row.id] = present[row.id] ? 'Present' : 'Absent'; });
+                        dateTabs[name] = { ts: dmyTabTs(name), status: map };
+                    });
+                }
+            } catch (e) { /* offline export: local + base workbook data still exported */ }
 
             const allRows = allStockRows();
             const known = {};
